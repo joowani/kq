@@ -5,8 +5,8 @@ KQ: Kafka-based Job Queue for Python
     :target: https://travis-ci.org/joowani/kq
     :alt: Build Status
 
-.. image:: https://readthedocs.org/projects/kq/badge/?version=master
-    :target: http://kq.readthedocs.io/en/master/?badge=master
+.. image:: https://readthedocs.org/projects/kq/badge/?version=latest
+    :target: http://kq.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
 .. image:: https://badge.fury.io/py/kq.svg
