@@ -15,8 +15,8 @@ from kq.utils import func_repr, rec_repr
 class Worker(object):
     """KQ worker.
 
-    A worker fetches jobs from a Kafka broker, de-serializes them, and
-    processes them asynchronously in the background. Here is an example
+    A worker fetches jobs from a Kafka broker, de-serializes them and
+    executes them asynchronously in the background. Here is an example
     of initializing and starting a worker:
 
     .. code-block:: python
@@ -117,7 +117,7 @@ class Worker(object):
             ssl_keyfile=keyfile,
             ssl_crlfile=crlfile,
             consumer_timeout_ms=-1,
-            enable_auto_commit=True,
+            enable_auto_commit=False,
             auto_offset_reset='latest',
         )
 
@@ -258,6 +258,7 @@ class Worker(object):
         try:
             for record in self._consumer:
                 self._consume_record(record)
+                self._consumer.commit()
         except KeyboardInterrupt:  # pragma: no cover
             self._logger.info('Stopping {} ...'.format(self))
             self._pool.terminate()  # TODO not sure if necessary

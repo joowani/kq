@@ -26,7 +26,7 @@ Start a KQ worker:
 .. code-block:: bash
 
     ~$ kq worker --verbose
-    [INFO] Starting Worker(topic=foobar) ...
+    [INFO] Starting Worker(topic=default) ...
 
 
 Enqueue the function call as a job:
@@ -44,7 +44,7 @@ Enqueue the function call as a job:
     q.enqueue(my_func, 1, 2, baz=3)
 
 
-Sit back and watch the worker process the job in the background:
+Sit back and watch the worker process it in the background:
 
 .. code-block:: bash
 

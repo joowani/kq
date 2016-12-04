@@ -31,9 +31,9 @@ KQ: Kafka-based Job Queue for Python
 
 |
 
-KQ (Kafka Queue) is a light-weight Python library which provides a simple API
-to queue and process jobs asynchronously in the background. It is backed by
-`Apache Kafka`_ and designed primarily for ease of use.
+KQ (Kafka Queue) is a lightweight Python library which provides a simple API
+to process jobs asynchronously in the background. It uses `Apache Kafka`_ and
+is designed primarily for ease of use.
 
 .. _Apache Kafka: https://kafka.apache.org
 
@@ -73,7 +73,7 @@ Start a KQ worker:
 .. code-block:: bash
 
     ~$ kq worker --verbose
-    [INFO] Starting Worker(topic=foobar) ...
+    [INFO] Starting Worker(topic=default) ...
 
 
 Enqueue the function call as a job:
@@ -91,7 +91,7 @@ Enqueue the function call as a job:
     q.enqueue(my_func, 1, 2, baz=3)
 
 
-Sit back and watch the worker process the job in the background:
+Sit back and watch the worker process it in the background:
 
 .. code-block:: bash
 

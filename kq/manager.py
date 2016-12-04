@@ -7,7 +7,7 @@ import kafka
 class Manager(object):
     """KQ manager.
 
-    Here is an example of initializing a manager:
+    Here is an example of initializing and using a manager:
 
     .. code-block:: python
 

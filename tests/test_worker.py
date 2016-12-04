@@ -115,7 +115,7 @@ def test_init(logger, callback):
         ssl_keyfile='/test/files/keyfile',
         ssl_crlfile='/test/files/crlfile',
         consumer_timeout_ms=-1,
-        enable_auto_commit=True,
+        enable_auto_commit=False,
         auto_offset_reset='latest',
     )
     assert repr(worker) == 'Worker(topic=foo)'

@@ -15,8 +15,8 @@ class Queue(object):
     """KQ queue.
 
     A queue serializes incoming function calls and places them into a Kafka
-    topic as *jobs*. Workers fetch these jobs and process them asynchronously
-    in the background. Here is an example of using a queue:
+    topic as *jobs*. Workers fetch these jobs and execute them asynchronously
+    in the background. Here is an example of initializing and using a queue:
 
     .. code-block:: python
 
