@@ -201,10 +201,12 @@ class Queue(object):
         :return: The job that was enqueued
         :rtype: kq.job.Job
         """
+        key = None
         if isinstance(obj, Job):
             func = obj.func
             args = obj.args
             kwargs = obj.kwargs
+            key = obj.key
         else:
             func = obj
 
@@ -219,9 +221,10 @@ class Queue(object):
             func=func,
             args=args,
             kwargs=kwargs,
-            timeout=self._timeout
+            timeout=self._timeout,
+            key=key
         )
-        self._producer.send(self._topic, dill.dumps(job))
+        self._producer.send(self._topic, dill.dumps(job), key=key)
         self._logger.info('Enqueued: {}'.format(job))
         return job
 

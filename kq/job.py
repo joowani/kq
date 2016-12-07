@@ -13,6 +13,7 @@ Job = namedtuple(
         'func',       # Job function/callable
         'args',       # Job function arguments
         'kwargs',     # Job function keyword arguments
-        'timeout'     # Job timeout threshold in seconds
+        'timeout',    # Job timeout threshold in seconds
+        'key'         # Jobs of the same key end up in same partition
     ]
 )
