@@ -4,8 +4,8 @@ import logging
 
 from kq.job import Job
 from kq.manager import Manager
-from kq.worker import Worker
 from kq.queue import Queue
+from kq.worker import Worker
 from kq.version import VERSION
 
 __all__ = ['Job', 'Manager', 'Worker', 'Queue', 'VERSION']

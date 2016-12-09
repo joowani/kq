@@ -224,7 +224,13 @@ class Queue(object):
             timeout=self._timeout,
             key=key
         )
-        self._producer.send(self._topic, dill.dumps(job), key=key)
+
+        future = self._producer.send(self._topic, dill.dumps(job), key=key)
+        try:
+            future.get(timeout=self._timeout or 5)
+        except KafkaError as e:
+            self._logger.error('Queuing failed: {}', str(e))
+            return None
         self._logger.info('Enqueued: {}'.format(job))
         return job
 

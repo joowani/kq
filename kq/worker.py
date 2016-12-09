@@ -8,6 +8,7 @@ import traceback as tb
 import dill
 import kafka
 
+from kq import Queue
 from kq.job import Job
 from kq.utils import func_repr, rec_repr
 
@@ -107,6 +108,11 @@ class Worker(object):
         self._callback = callback
         self._pool = None
         self._logger = logging.getLogger('kq')
+        self._job_size = job_size
+        self._cafile = cafile
+        self._certfile = certfile
+        self._keyfile = keyfile
+        self._crlfile = crlfile
         self._consumer = kafka.KafkaConsumer(
             self._topic,
             group_id=self._topic,
@@ -122,6 +128,11 @@ class Worker(object):
         )
 
         self._task_finished = False
+        # 1 -> Commit and move on
+        # 0 -> Dont Commit let the worker try again
+        # -1 -> Commit but place this task in failed queue
+        # Any other value -> Commit and move on
+        self._commit_control = 1
 
     def __del__(self):
         """Commit the Kafka consumer offsets and close the consumer.
@@ -167,12 +178,45 @@ class Worker(object):
             ``failure``) was running or ``None`` if there were no errors.
         :type traceback: str | unicode | None
         """
+        resp = None
         if self._callback is not None:
             try:
                 self._logger.info('Executing callback ...')
-                self._callback(status, job, result, exception, traceback)
+                resp = self._callback(status, job, result, exception, traceback)
             except Exception as e:
                 self._logger.exception('Callback failed: {}'.format(e))
+        if resp is None:
+            resp = 1
+        return resp
+
+    def _get_fail_topic(self):
+        return self._topic + '.failed'
+
+    def _fail_record(self, record):
+        """De-serialize the message and put the job in fail queue
+        to be handled by fail queue worker.
+
+        :param record: Record fetched from the Kafka topic.
+        :type record: kafka.consumer.fetcher.ConsumerRecord
+        """
+        rec = rec_repr(record)
+        try:
+            job = dill.loads(record.value)
+        except:
+            self._logger.warning('{} unloadable. Cannot fail ...'.format(rec))
+        else:
+            Queue(
+                hosts=self._hosts,
+                topic=self._get_fail_topic(),
+                timeout = self._timeout,
+                acks=-1,
+                retries=5,
+                job_size=self._job_size,
+                cafile = self._cafile,
+                certfile = self._certfile,
+                keyfile = self._keyfile,
+                crlfile = self._crlfile
+            ).enqueue(job)
 
     def _consume_record(self, record):
         """De-serialize the message and execute the incoming job.
@@ -208,13 +252,13 @@ class Worker(object):
             except mp.TimeoutError:
                 self._logger.error('Job {} timed out after {} seconds.'
                                    .format(job.id, job.timeout))
-                self._exec_callback('timeout', job, None, None, None)
+                self._commit_control = self._exec_callback('timeout', job, None, None, None)
             except Exception as e:
                 self._logger.exception('Job {} failed: {}'.format(job.id, e))
-                self._exec_callback('failure', job, None, e, tb.format_exc())
+                self._commit_control = self._exec_callback('failure', job, None, e, tb.format_exc())
             else:
                 self._logger.info('Job {} returned: {}'.format(job.id, res))
-                self._exec_callback('success', job, res, None, None)
+                self._commit_control = self._exec_callback('success', job, res, None, None)
 
     @property
     def consumer(self):
@@ -264,8 +308,17 @@ class Worker(object):
         try:
             for record in self._consumer:
                 self._consume_record(record)
+
                 self._task_finished = True
-                self._consumer.commit()
+
+                if self._commit_control == -1:
+                    self._fail_record(record)
+                elif self._commit_control == 0:
+                    # Do nothing
+                    pass
+                else:
+                    self._consumer.commit()
+
                 self._task_finished = False # For next task
         except KeyboardInterrupt:  # pragma: no cover
             self._logger.info('Stopping {} ...'.format(self))
