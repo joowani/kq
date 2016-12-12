@@ -83,7 +83,7 @@ def test_enqueue_call(producer, logger):
     assert job.kwargs == {'c': [3, 4, 5]}
     assert job.timeout == 300
 
-    producer_inst.send.assert_called_with('foo', dill.dumps(job))
+    producer_inst.send.assert_called_with('foo', dill.dumps(job), key=None)
     logger.info.assert_called_once_with('Enqueued: {}'.format(job))
 
 
@@ -128,7 +128,7 @@ def test_enqueue_job(producer, logger):
     assert new_job.kwargs == {'a': 3}
     assert new_job.timeout == 300
 
-    producer_inst.send.assert_called_with('foo', dill.dumps(new_job))
+    producer_inst.send.assert_called_with('foo', dill.dumps(new_job), key=None)
     logger.info.assert_called_once_with('Enqueued: {}'.format(new_job))
 
 
