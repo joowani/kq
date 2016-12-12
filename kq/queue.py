@@ -198,6 +198,10 @@ class Queue(object):
         :param kwargs: Keyword arguments for the function. Ignored if a KQ
             job instance is given as the first argument instead.
         :type kwargs: dict
+        :param key: Queue the job with a key. Jobs queued with a specific key
+            are processed in order they were queued. Setting it to None (default)
+            disables this behaviour.
+        :type key: str | unicode
         :return: The job that was enqueued
         :rtype: kq.job.Job
         """
