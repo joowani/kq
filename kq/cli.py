@@ -5,6 +5,7 @@ Usage:
   kq (worker|info) [--hosts=<hosts>]
                    [--topic=<topic>]
                    [--timeout=<timeout>]
+                   [--connect-timeout=<connect-timeout>]
                    [--callback=<callback>]
                    [--job-size=<job-size>]
                    [--cafile=<cafile>]
@@ -20,6 +21,7 @@ Options:
   --topic=<topic>        Name of the Kafka topic [default: default]
   --job-size=<job-size>  Maximum job size in bytes [default: 1048576]
   --timeout=<timeout>    Job timeout threshold in seconds
+  --connect-timeout=<connect-timeout>    Kafka timeout in case of requeue
   --callback=<callback>  Python module containing the callback function
   --cafile=<cafile>      Full path to SSL trusted CA certificate
   --certfile=<certfile>  Full path to SSL client certificate
@@ -90,10 +92,12 @@ def entry_point():
 
     elif args['worker']:
         timeout = args['--timeout']
+        connect_timeout = args['--connect-timeout']
         kq.Worker(
             hosts=args['--hosts'],
             topic=args['--topic'],
             timeout=int(timeout) if timeout else None,
+            connect_timeout=int(connect_timeout) if connect_timeout else None,
             callback=callback,
             job_size=int(args['--job-size']),
             cafile=args['--cafile'],

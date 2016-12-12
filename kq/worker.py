@@ -96,6 +96,7 @@ class Worker(object):
                  hosts='127.0.0.1:9092',
                  topic='default',
                  timeout=None,
+                 connect_timeout=None,
                  callback=None,
                  job_size=1048576,
                  cafile=None,
@@ -105,6 +106,7 @@ class Worker(object):
         self._hosts = hosts
         self._topic = topic
         self._timeout = timeout
+        self._connect_timeout = connect_timeout
         self._callback = callback
         self._pool = None
         self._logger = logging.getLogger('kq')
@@ -208,7 +210,7 @@ class Worker(object):
             Queue(
                 hosts=self._hosts,
                 topic=self._get_fail_topic(),
-                timeout = self._timeout,
+                timeout = self._connect_timeout,
                 acks=-1,
                 retries=5,
                 job_size=self._job_size,
