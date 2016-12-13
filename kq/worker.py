@@ -183,6 +183,9 @@ class Worker(object):
 
         :param record: Record fetched from the Kafka topic.
         :type record: kafka.consumer.fetcher.ConsumerRecord
+        :return: True if the record was successfully queued in fail queue.
+                 False otherwise.
+        :rtype: bool
         """
         fail_topic = self._get_fail_topic()
 
@@ -262,8 +265,6 @@ class Worker(object):
             else:
                 self._logger.info('Job {} returned: {}'.format(job.id, res))
                 commit_control = self._exec_callback('success', job, res, None, None)
-        if commit_control is None:
-            commit_control = 1
         return commit_control
 
     @property

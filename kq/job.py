@@ -3,7 +3,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 from collections import namedtuple
 
 
-# Named tuple which encapsulates a KQ job
+# Namedtuple which encapsulates a KQ job
 Job = namedtuple(
     typename='Job',
     field_names=[
