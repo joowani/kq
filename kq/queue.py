@@ -198,13 +198,19 @@ class Queue(object):
         :param kwargs: Keyword arguments for the function. Ignored if a KQ
             job instance is given as the first argument instead.
         :type kwargs: dict
+        :param key: Queue the job with a key. Jobs queued with a specific key
+            are processed in order they were queued. Setting it to None (default)
+            disables this behaviour.
+        :type key: str | unicode
         :return: The job that was enqueued
         :rtype: kq.job.Job
         """
+        key = None
         if isinstance(obj, Job):
             func = obj.func
             args = obj.args
             kwargs = obj.kwargs
+            key = obj.key
         else:
             func = obj
 
@@ -219,9 +225,10 @@ class Queue(object):
             func=func,
             args=args,
             kwargs=kwargs,
-            timeout=self._timeout
+            timeout=self._timeout,
+            key=key
         )
-        self._producer.send(self._topic, dill.dumps(job))
+        self._producer.send(self._topic, dill.dumps(job), key=key)
         self._logger.info('Enqueued: {}'.format(job))
         return job
 

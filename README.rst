@@ -102,6 +102,31 @@ Sit back and watch the worker process it in the background:
     [INFO] Job 1b92xle0 returned: (1, 2, 3)
 
 
+Enqueue a job to be processed in-order with other jobs with a particular key:
+
+.. code-block:: python
+
+    # Import the blocking function
+    from my_module import my_func
+
+    # Initialize a queue
+    from kq import Queue
+    q = Queue()
+
+    # Enqueue the function call as Job
+    import uuid, time
+    from kq import Job
+    job = Job(
+        str(uuid.uuid4()),
+        timestamp=int(time.time()),
+        func=my_func,
+        args=(1, 2),
+        kwargs={'baz': 3},
+        key="task_category_1"
+    )
+    q.enqueue(job)
+
+
 Check out the full documentation_ for more details!
 
 .. _documentation: http://kq.readthedocs.io/en/master/
