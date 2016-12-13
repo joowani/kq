@@ -129,12 +129,6 @@ class Worker(object):
             auto_offset_reset='latest',
         )
 
-        # 1 -> Commit and move on
-        # 0 -> Dont Commit let the worker try again
-        # -1 -> Commit but place this task in failed queue
-        # Any other value -> Commit and move on
-        self._commit_control = 1
-
     def __del__(self):
         """Commit the Kafka consumer offsets and close the consumer."""
         if hasattr(self, '_consumer'):
@@ -185,21 +179,16 @@ class Worker(object):
         return self._topic + '.failed'
 
     def _fail_record(self, record):
-        """De-serialize the message and put the job in fail queue
-        to be handled by fail queue worker.
+        """Put the job in fail queue to be handled by fail queue worker.
 
         :param record: Record fetched from the Kafka topic.
         :type record: kafka.consumer.fetcher.ConsumerRecord
         """
-        rec = rec_repr(record)
-        try:
-            job = dill.loads(record.value)
-        except:
-            self._logger.warning('{} unloadable. Cannot fail ...'.format(rec))
-        else:
-            Queue(
+        fail_topic = self._get_fail_topic()
+
+        q = Queue(
                 hosts=self._hosts,
-                topic=self._get_fail_topic(),
+                topic=fail_topic,
                 timeout = self._connect_timeout,
                 acks=-1,
                 retries=5,
@@ -208,20 +197,41 @@ class Worker(object):
                 certfile = self._certfile,
                 keyfile = self._keyfile,
                 crlfile = self._crlfile
-            ).enqueue(job)
+            )
+
+        try:
+            key = dill.loads(record.value).key
+        except:
+            key = None
+
+        future = q.producer.send(fail_topic, record.value, key=key)
+        try:
+            future.get(timeout=self._timeout or 5)
+        except KafkaError as e:
+            self._logger.error('Queuing failed: {}', str(e))
+            return False
+        return True
+
 
     def _consume_record(self, record):
         """De-serialize the message and execute the incoming job.
 
         :param record: Record fetched from the Kafka topic.
         :type record: kafka.consumer.fetcher.ConsumerRecord
+        :return: Integer value representing what worker did with the record.
+                 1  -> Record was processed successfully
+                 0  -> Record failed to process temporarily
+                 -1 -> Record failed to process permanently
+        :rtype: int
         """
+        commit_control = 1
         rec = rec_repr(record)
         self._logger.info('Processing {} ...'.format(rec))
         try:
             job = dill.loads(record.value)
         except:
             self._logger.warning('{} unloadable. Skipping ...'.format(rec))
+            commit_control = -1
         else:
             # Simple check for job validity
             if not (isinstance(job, Job)
@@ -229,7 +239,8 @@ class Worker(object):
                     and isinstance(job.kwargs, collections.Mapping)
                     and callable(job.func)):
                 self._logger.warning('{} malformed. Skipping ...'.format(rec))
-                return
+                commit_control = -1
+                return commit_control
             func, args, kwargs = job.func, job.args, job.kwargs
             self._logger.info('Running Job {}: {} ...'.format(
                 job.id, func_repr(func, args, kwargs)
@@ -244,13 +255,16 @@ class Worker(object):
             except mp.TimeoutError:
                 self._logger.error('Job {} timed out after {} seconds.'
                                    .format(job.id, job.timeout))
-                self._commit_control = self._exec_callback('timeout', job, None, None, None)
+                commit_control = self._exec_callback('timeout', job, None, None, None)
             except Exception as e:
                 self._logger.exception('Job {} failed: {}'.format(job.id, e))
-                self._commit_control = self._exec_callback('failure', job, None, e, tb.format_exc())
+                commit_control = self._exec_callback('failure', job, None, e, tb.format_exc())
             else:
                 self._logger.info('Job {} returned: {}'.format(job.id, res))
-                self._commit_control = self._exec_callback('success', job, res, None, None)
+                commit_control = self._exec_callback('success', job, res, None, None)
+        if commit_control is None:
+            commit_control = 1
+        return commit_control
 
     @property
     def consumer(self):
@@ -299,11 +313,12 @@ class Worker(object):
         self._pool = mp.Pool(processes=1)
         try:
             for record in self._consumer:
-                self._consume_record(record)
+                commit_control = self._consume_record(record)
 
-                if self._commit_control == -1:
-                    self._fail_record(record)
-                elif self._commit_control == 0:
+                if commit_control == -1:
+                    if self._fail_record(record):
+                        self._consumer.commit()
+                elif commit_control == 0:
                     # Do nothing
                     pass
                 else:
