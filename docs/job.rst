@@ -16,7 +16,8 @@ KQ encapsulates jobs using namedtuples_. The definition is as follows:
             'func',       # Job function/callable
             'args',       # Job function arguments
             'kwargs',     # Job function keyword arguments
-            'timeout'     # Job timeout threshold in seconds
+            'timeout',    # Job timeout threshold in seconds
+            'key'         # Jobs w/ the same keys end up in the same partition
         ]
     )
 

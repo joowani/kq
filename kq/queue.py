@@ -172,7 +172,7 @@ class Queue(object):
         return self._timeout
 
     def enqueue(self, obj, *args, **kwargs):
-        """Serialize the function call and place it in the Kafka topic.
+        """Place the function call (or the job) in the Kafka topic.
 
         For example:
 
@@ -198,14 +198,9 @@ class Queue(object):
         :param kwargs: Keyword arguments for the function. Ignored if a KQ
             job instance is given as the first argument instead.
         :type kwargs: dict
-        :param key: Queue the job with a key. Jobs queued with a specific key
-            are processed in order they were queued. Setting it to None (default)
-            disables this behaviour.
-        :type key: str | unicode
         :return: The job that was enqueued
         :rtype: kq.job.Job
         """
-        key = None
         if isinstance(obj, Job):
             func = obj.func
             args = obj.args
@@ -213,11 +208,11 @@ class Queue(object):
             key = obj.key
         else:
             func = obj
+            key = None
 
         if not callable(func):
-            raise ValueError(
-                '{} is not a callable'.format(func)
-            )
+            raise ValueError('{} is not a callable'.format(func))
+
         job = Job(
             id=str(uuid.uuid4()),
             timestamp=int(time.time()),
@@ -228,7 +223,71 @@ class Queue(object):
             timeout=self._timeout,
             key=key
         )
+        future = self._producer.send(self._topic, dill.dumps(job), key=key)
+        try:
+            future.get(timeout=self._timeout or 5)
+        except KafkaError as e:
+            self._logger.error('Queuing failed: {}', str(e))
+            return None
+        self._logger.info('Enqueued: {}'.format(job))
+        return job
 
+    def enqueue_with_key(self, key, obj, *args, **kwargs):
+        """Place the function call (or the job) in the Kafka topic with key.
+
+        For example:
+
+        .. code-block:: python
+
+            import requests
+            from kq import Queue
+
+            q = Queue()
+
+            url = 'https://www.google.com'
+
+            # You can queue the function call with its arguments
+            job = q.enqueue_with_key('my_key', requests.get, url)
+
+            # Or you can queue a kq.job.Job instance directly
+            q.enqueue_with_key('my_key', job)
+
+        :param key: The key for the Kafka message. Jobs with the same key are
+            guaranteed to be placed in the same Kafka partition and processed
+            sequentially. If a job object is enqueued, its key is overwritten.
+        :type key: str
+        :param obj: Function or the job object to enqueue. If a function is
+            given, the function *must* be pickle-able.
+        :type obj: callable | kq.job.Job
+        :param args: Arguments for the function. Ignored if a KQ job object
+            is given for the first argument instead.
+        :type args: list
+        :param kwargs: Keyword arguments for the function. Ignored if a KQ
+            job instance is given as the first argument instead.
+        :type kwargs: dict
+        :return: The job that was enqueued
+        :rtype: kq.job.Job
+        """
+        if isinstance(obj, Job):
+            func = obj.func
+            args = obj.args
+            kwargs = obj.kwargs
+        else:
+            func = obj
+
+        if not callable(func):
+            raise ValueError('{} is not a callable'.format(func))
+
+        job = Job(
+            id=str(uuid.uuid4()),
+            timestamp=int(time.time()),
+            topic=self._topic,
+            func=func,
+            args=args,
+            kwargs=kwargs,
+            timeout=self._timeout,
+            key=key
+        )
         future = self._producer.send(self._topic, dill.dumps(job), key=key)
         try:
             future.get(timeout=self._timeout or 5)
