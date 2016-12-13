@@ -17,3 +17,5 @@ Job = namedtuple(
         'key'         # Jobs of the same key end up in same partition
     ]
 )
+# Make 'key' None by defauly to support older Jobs
+Job.__new__.__defaults__ = (None,)
