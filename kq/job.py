@@ -3,7 +3,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 from collections import namedtuple
 
 
-# Named tuple which encapsulates a KQ job
+# Namedtuple which encapsulates a KQ job
 Job = namedtuple(
     typename='Job',
     field_names=[
@@ -14,8 +14,7 @@ Job = namedtuple(
         'args',       # Job function arguments
         'kwargs',     # Job function keyword arguments
         'timeout',    # Job timeout threshold in seconds
-        'key'         # Jobs of the same key end up in same partition
+        'key'         # Jobs w/ the same keys end up in the same partition
     ]
 )
-# Make 'key' None by defauly to support older Jobs
 Job.__new__.__defaults__ = (None,)

@@ -41,8 +41,9 @@ Here is a trivial example:
         logger.info('In topic: {}'.format(job.topic))
         logger.info('Function: {}'.format(job.func))
         logger.info('Arguments {}'.format(job.args))
-        logger.info('Keyword arguments {}'.format(job.kwargs))
-        logger.info('Timeout threshold {}'.format(job.timeout))
+        logger.info('Keyword arguments: {}'.format(job.kwargs))
+        logger.info('Timeout threshold: {}'.format(job.timeout))
+        logger.info('Job message key: {}'.format(job.key))
 
         if status == 'success':
             logger.info('The job returned: {}'.format(result))

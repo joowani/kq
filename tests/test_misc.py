@@ -11,7 +11,7 @@ def test_version():
 
 
 def test_job():
-    job = Job(1, 2, 3, 4, 5, 6, 7)
+    job = Job(1, 2, 3, 4, 5, 6, 7, 8)
 
     assert job.id == 1
     assert job.timestamp == 2
@@ -20,6 +20,7 @@ def test_job():
     assert job.args == 5
     assert job.kwargs == 6
     assert job.timeout == 7
+    assert job.key == 8
 
 
 def test_func_repr():

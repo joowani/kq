@@ -125,11 +125,6 @@ class Worker(object):
         """Commit the Kafka consumer offsets and close the consumer."""
         if hasattr(self, '_consumer'):
             try:
-                self._logger.info('Committing offsets ...')
-                self._consumer.commit()
-            except Exception as e:  # pragma: no cover
-                self._logger.warning('Failed to commit offsets: {}'.format(e))
-            try:
                 self._logger.info('Closing consumer ...')
                 self._consumer.close()
             except Exception as e:  # pragma: no cover
