@@ -87,6 +87,26 @@ def test_enqueue_call(producer, logger):
     logger.info.assert_called_once_with('Enqueued: {}'.format(job))
 
 
+def test_enqueue_call_with_key(producer, logger):
+    producer_cls, producer_inst = producer
+
+    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
+    job = queue.enqueue_with_key('bar', success_func, 1, 2, c=[3, 4, 5])
+
+    assert isinstance(job, Job)
+    assert isinstance(job.id, str)
+    assert isinstance(job.timestamp, int)
+    assert job.topic == 'foo'
+    assert job.func == success_func
+    assert job.args == (1, 2)
+    assert job.kwargs == {'c': [3, 4, 5]}
+    assert job.timeout == 300
+    assert job.key == 'bar'
+
+    producer_inst.send.assert_called_with('foo', dill.dumps(job), key='bar')
+    logger.info.assert_called_once_with('Enqueued: {}'.format(job))
+
+
 def test_invalid_call(producer, logger):
     producer_cls, producer_inst = producer
 
@@ -95,6 +115,20 @@ def test_invalid_call(producer, logger):
     for bad_func in [None, 1, {1, 2}, [1, 2, 3]]:
         with pytest.raises(ValueError) as e:
             queue.enqueue(bad_func, 1, 2, a=3)
+        assert str(e.value) == '{} is not a callable'.format(bad_func)
+
+    assert not producer_inst.send.called
+    assert not logger.info.called
+
+
+def test_invalid_call_with_key(producer, logger):
+    producer_cls, producer_inst = producer
+
+    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
+
+    for bad_func in [None, 1, {1, 2}, [1, 2, 3]]:
+        with pytest.raises(ValueError) as e:
+            queue.enqueue_with_key('foo', bad_func, 1, 2, a=3)
         assert str(e.value) == '{} is not a callable'.format(bad_func)
 
     assert not producer_inst.send.called
@@ -127,8 +161,46 @@ def test_enqueue_job(producer, logger):
     assert new_job.args == [1, 2]
     assert new_job.kwargs == {'a': 3}
     assert new_job.timeout == 300
+    assert new_job.key == None
 
-    producer_inst.send.assert_called_with('foo', dill.dumps(new_job), key=None)
+    producer_inst.send.assert_called_with(
+        'foo', dill.dumps(new_job), key=None
+    )
+    logger.info.assert_called_once_with('Enqueued: {}'.format(new_job))
+
+
+def test_enqueue_job_with_key(producer, logger):
+    producer_cls, producer_inst = producer
+
+    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
+
+    old_job = Job(
+        id='2938401',
+        timestamp=int(time.time()),
+        topic='bar',
+        func=failure_func,
+        args=[1, 2],
+        kwargs={'a': 3},
+        timeout=100,
+        key='bar',
+    )
+    new_job = queue.enqueue_with_key('baz', old_job)
+
+    assert isinstance(new_job, Job)
+    assert isinstance(new_job.id, str)
+    assert isinstance(new_job.timestamp, int)
+    assert old_job.id != new_job.id
+    assert old_job.timestamp <= new_job.timestamp
+    assert new_job.topic == 'foo'
+    assert new_job.func == failure_func
+    assert new_job.args == [1, 2]
+    assert new_job.kwargs == {'a': 3}
+    assert new_job.timeout == 300
+    assert new_job.key == 'baz'
+
+    producer_inst.send.assert_called_with(
+        'foo', dill.dumps(new_job), key='baz'
+    )
     logger.info.assert_called_once_with('Enqueued: {}'.format(new_job))
 
 
