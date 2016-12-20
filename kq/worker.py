@@ -146,7 +146,7 @@ class Worker(object):
         """
         return 'Worker(topic={})'.format(self._topic)
 
-    def _exec_callback(self, status, job, result, exception, traceback):
+    def _exec_callback(self, status, job, result, exception, traceback, try_count):
         """Execute the callback in a try-except block.
 
         :param status: The status of the job consumption. Possible values are
@@ -168,7 +168,7 @@ class Worker(object):
         if self._callback is not None:
             try:
                 self._logger.info('Executing callback ...')
-                resp = self._callback(status, job, result, exception, traceback)
+                resp = self._callback(status, job, result, exception, traceback, try_count)
             except Exception as e:
                 self._logger.exception('Callback failed: {}'.format(e))
         if resp is None:
@@ -216,7 +216,7 @@ class Worker(object):
         return True
 
 
-    def _consume_record(self, record):
+    def _consume_record(self, record, try_count=0):
         """De-serialize the message and execute the incoming job.
 
         :param record: Record fetched from the Kafka topic.
@@ -258,13 +258,13 @@ class Worker(object):
             except mp.TimeoutError:
                 self._logger.error('Job {} timed out after {} seconds.'
                                    .format(job.id, job.timeout))
-                commit_control = self._exec_callback('timeout', job, None, None, None)
+                commit_control = self._exec_callback('timeout', job, None, None, None, try_count)
             except Exception as e:
                 self._logger.exception('Job {} failed: {}'.format(job.id, e))
-                commit_control = self._exec_callback('failure', job, None, e, tb.format_exc())
+                commit_control = self._exec_callback('failure', job, None, e, tb.format_exc(), try_count)
             else:
                 self._logger.info('Job {} returned: {}'.format(job.id, res))
-                commit_control = self._exec_callback('success', job, res, None, None)
+                commit_control = self._exec_callback('success', job, res, None, None, try_count)
         return commit_control
 
     @property
@@ -314,14 +314,15 @@ class Worker(object):
         self._pool = mp.Pool(processes=1)
         try:
             for record in self._consumer:
-                commit_control = self._consume_record(record)
+                commit_control = 0
+                try_count = 0
+                while commit_control == 0:
+                    commit_control = self._consume_record(record, try_count)
+                    try_count = try_count + 1
 
                 if commit_control == -1:
                     if self._fail_record(record):
                         self._consumer.commit()
-                elif commit_control == 0:
-                    # Do nothing
-                    pass
                 else:
                     self._consumer.commit()
         except KeyboardInterrupt:  # pragma: no cover
