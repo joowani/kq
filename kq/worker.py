@@ -106,7 +106,7 @@ class Worker(object):
         self._hosts = hosts
         self._topic = topic
         self._timeout = timeout
-        self._connect_timeout = connect_timeout
+        self._connect_timeout = connect_timeout or 5
         self._callback = callback
         self._pool = None
         self._logger = logging.getLogger('kq')
@@ -115,6 +115,10 @@ class Worker(object):
         self._certfile = certfile
         self._keyfile = keyfile
         self._crlfile = crlfile
+        if self._timeout:
+            self._session_timeout_ms = (self._timeout + self._connect_timeout) * 1000
+        else:
+            self._session_timeout_ms = 30000
         self._consumer = kafka.KafkaConsumer(
             self._topic,
             group_id=self._topic,
@@ -125,6 +129,7 @@ class Worker(object):
             ssl_keyfile=keyfile,
             ssl_crlfile=crlfile,
             consumer_timeout_ms=-1,
+            session_timeout_ms=self._session_timeout_ms,
             enable_auto_commit=False,
             auto_offset_reset='latest',
         )
