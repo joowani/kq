@@ -7,6 +7,7 @@ import uuid
 
 import dill
 import kafka
+from kafka.errors import KafkaError
 
 from kq.job import Job
 

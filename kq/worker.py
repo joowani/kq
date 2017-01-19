@@ -7,6 +7,7 @@ import traceback as tb
 
 import dill
 import kafka
+from kafka.errors import KafkaError
 
 from kq import Queue
 from kq.job import Job
