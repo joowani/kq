@@ -217,7 +217,7 @@ class Worker(object):
         try:
             future.get(timeout=self._timeout or 5)
         except KafkaError as e:
-            self._logger.error('Queuing failed: {}', str(e))
+            self._logger.exception('Queuing failed: {}'.format(e.message))
             return False
         return True
 
