@@ -228,7 +228,7 @@ class Queue(object):
         try:
             future.get(timeout=self._timeout or 5)
         except KafkaError as e:
-            self._logger.error('Queuing failed: {}', str(e))
+            self._logger.exception('Queuing failed: {}'.format(e.message))
             return None
         self._logger.info('Enqueued: {}'.format(job))
         return job
@@ -293,7 +293,7 @@ class Queue(object):
         try:
             future.get(timeout=self._timeout or 5)
         except KafkaError as e:
-            self._logger.error('Queuing failed: {}', str(e))
+            self._logger.exception('Queuing failed: {}'.format(e.message))
             return None
         self._logger.info('Enqueued: {}'.format(job))
         return job
