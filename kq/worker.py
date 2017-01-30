@@ -262,11 +262,11 @@ class Worker(object):
                     run = self._pool.apply_async(func, args, kwargs)
                     res = run.get(timeout)
             except mp.TimeoutError:
-                self._logger.error('Job {} timed out after {} seconds.'
+                self._logger.info('Job {} timed out after {} seconds.'
                                    .format(job.id, job.timeout))
                 commit_control = self._exec_callback('timeout', job, None, None, None, try_count)
             except Exception as e:
-                self._logger.exception('Job {} failed: {}'.format(job.id, e))
+                self._logger.info('Job {} failed: {}'.format(job.id, e))
                 commit_control = self._exec_callback('failure', job, None, e, tb.format_exc(), try_count)
             else:
                 self._logger.info('Job {} returned: {}'.format(job.id, res))
