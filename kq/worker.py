@@ -152,6 +152,16 @@ class Worker(object):
         """
         return 'Worker(topic={})'.format(self._topic)
 
+    def _send_heartbeat(self):
+        """A very hacky function to send heartbeats in case of temporary failures.
+           Use with extreme caution
+        """
+        if self._consumer._use_consumer_group():
+            self._consumer._coordinator.ensure_coordinator_known()
+            self._consumer._coordinator.ensure_active_group()
+        elif self._consumer.config['group_id'] is not None and self._consumer.config['api_version'] >= (0, 8, 2):
+            self._consumer._coordinator.ensure_coordinator_known()
+
     def _exec_callback(self, status, job, result, exception, traceback, try_count):
         """Execute the callback in a try-except block.
 
@@ -323,6 +333,8 @@ class Worker(object):
                 commit_control = 0
                 try_count = 0
                 while commit_control == 0:
+                    if try_count > 0:
+                        self._send_heartbeat()
                     commit_control = self._consume_record(record, try_count)
                     try_count = try_count + 1
 
