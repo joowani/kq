@@ -22,6 +22,7 @@ or view the offsets on topic partitions:
                        [--certfile=<certfile>]
                        [--keyfile=<keyfile>]
                        [--crlfile=<crlfile>]
+                       [--proc-ttl=<proc-ttl>]
                        [--verbose]
       kq --help
       kq --version
@@ -36,6 +37,7 @@ or view the offsets on topic partitions:
       --certfile=<certfile>  Full path to SSL client certificate
       --keyfile=<keyfile>    Full path to SSL private key
       --crlfile=<crlfile>    Full path to SSL crlfile for verifying expiry
+      --proc-ttl=<proc-ttl>  Records read before re-spawning process [default: 5000]
       --verbose              Turn on debug logging output
       --help                 Display this help menu
       --version              Display the version of KQ
