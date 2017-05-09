@@ -254,3 +254,29 @@ def test_start_job_callback_fail(logger, callback):
     logger.exception.assert_called_once_with(
         'Callback failed: {}'.format(expected_error)
     )
+
+
+def test_start_proc_ttl_reached(logger, callback):
+    mock_consumer.__iter__ = lambda x: iter([rec11, rec11])
+    worker = Worker(
+        hosts='localhost',
+        topic='foo',
+        callback=callback,
+        proc_ttl=1,
+    )
+    worker.start()
+    logger.info.assert_has_calls([
+        mock.call('Starting Worker(topic=foo) ...'),
+        mock.call('Processing {} ...'.format(rec11_repr)),
+        mock.call('Running Job 100: tests.utils.success_func(1, 2, c=3) ...'),
+        mock.call('Job 100 returned: (1, 2, 3)'),
+        mock.call('Executing callback ...'),
+        mock.call('Processing {} ...'.format(rec11_repr)),
+        mock.call('Running Job 100: tests.utils.success_func(1, 2, c=3) ...'),
+        mock.call('Job 100 returned: (1, 2, 3)'),
+        mock.call('Executing callback ...'),
+        mock.call('Refreshing process pool ...'),
+    ])
+    callback.assert_called_with(
+        'success', success_job, (1, 2, 3), None, None
+    )

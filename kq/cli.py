@@ -11,6 +11,7 @@ Usage:
                    [--certfile=<certfile>]
                    [--keyfile=<keyfile>]
                    [--crlfile=<crlfile>]
+                   [--proc-ttl=<proc-ttl>]
                    [--verbose]
   kq --help
   kq --version
@@ -25,6 +26,7 @@ Options:
   --certfile=<certfile>  Full path to SSL client certificate
   --keyfile=<keyfile>    Full path to SSL private key
   --crlfile=<crlfile>    Full path to SSL crlfile for verifying expiry
+  --proc-ttl=<proc-ttl>  Records read before re-spawning process [default: 5000]
   --verbose              Turn on debug logging output
   --help                 Display this help menu
   --version              Display the version of KQ
@@ -100,4 +102,5 @@ def entry_point():
             certfile=args['--certfile'],
             keyfile=args['--keyfile'],
             crlfile=args['--crlfile'],
+            proc_ttl=int(args['--proc-ttl'])
         ).start()

@@ -32,7 +32,8 @@ class Worker(object):
             cafile='/my/files/cafile',
             certfile='/my/files/certfile',
             keyfile='/my/files/keyfile',
-            crlfile='/my/files/crlfile'
+            crlfile='/my/files/crlfile',
+            proc_ttl=2000,
         )
         worker.start()
 
@@ -89,6 +90,10 @@ class Worker(object):
     :param crlfile: Full path to the CRL file for validating certification
         expiry. This option is only available with Python 3.4+ or 2.7.9+.
     :type crlfile: str | unicode
+    :param proc_ttl: The number of records read before the worker's process
+        (multiprocessing pool of 1 process) is re-spawned. If set to ``0``
+        or ``None``, the re-spawning is disabled. Default: ``5000``.
+    :type proc_ttl: int
     """
 
     def __init__(self,
@@ -100,12 +105,14 @@ class Worker(object):
                  cafile=None,
                  certfile=None,
                  keyfile=None,
-                 crlfile=None):
+                 crlfile=None,
+                 proc_ttl=5000):
         self._hosts = hosts
         self._topic = topic
         self._timeout = timeout
         self._callback = callback
         self._pool = None
+        self._proc_ttl = proc_ttl
         self._logger = logging.getLogger('kq')
         self._consumer = kafka.KafkaConsumer(
             self._topic,
@@ -205,6 +212,16 @@ class Worker(object):
                 self._logger.info('Job {} returned: {}'.format(job.id, res))
                 self._exec_callback('success', job, res, None, None)
 
+    def _refresh_pool(self):
+        """Terminate the previous process pool and initialize a new one."""
+        self._logger.info('Refreshing process pool ...')
+        try:
+            self._pool.terminate()
+        except Exception as e:  # pragma: no cover
+            self._logger.exception('Failed to terminate pool: {}'.format(e))
+        finally:
+            self._pool = mp.Pool(processes=1)
+
     @property
     def consumer(self):
         """Return the Kafka consumer object.
@@ -250,10 +267,18 @@ class Worker(object):
         """
         self._logger.info('Starting {} ...'.format(self))
         self._pool = mp.Pool(processes=1)
+        records_read = 0
+
         try:
             for record in self._consumer:
                 self._consume_record(record)
                 self._consumer.commit()
+                if self._proc_ttl and records_read >= self._proc_ttl:
+                    self._refresh_pool()
+                    records_read = 0
+                else:
+                    records_read += 1
+
         except KeyboardInterrupt:  # pragma: no cover
             self._logger.info('Stopping {} ...'.format(self))
             self._pool.terminate()  # TODO not sure if necessary
