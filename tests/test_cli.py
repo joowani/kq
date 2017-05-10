@@ -95,7 +95,8 @@ def test_worker(worker, logger):
         '--certfile=/test/files/certfile',
         '--keyfile=/test/files/keyfile',
         '--crlfile=/test/files/crlfile',
-        '--proc-ttl=1000'
+        '--proc-ttl=1000',
+        '--offset=earliest'
     ]
     with patch_object(sys, 'argv', test_arguments):
         cli.entry_point()
@@ -111,7 +112,8 @@ def test_worker(worker, logger):
         certfile='/test/files/certfile',
         keyfile='/test/files/keyfile',
         crlfile='/test/files/crlfile',
-        proc_ttl=1000
+        proc_ttl=1000,
+        offset_policy='earliest'
     )
     worker_inst.start.assert_called_once()
 
@@ -142,7 +144,8 @@ def test_callback(worker, logger):
         certfile=None,
         keyfile=None,
         crlfile=None,
-        proc_ttl=5000
+        proc_ttl=5000,
+        offset_policy='latest'
     )
     worker_inst.start.assert_called_once()
 
@@ -164,6 +167,7 @@ def test_verbose(worker, logger):
         certfile=None,
         keyfile=None,
         crlfile=None,
-        proc_ttl=5000
+        proc_ttl=5000,
+        offset_policy='latest'
     )
     worker_inst.start.assert_called_once()

@@ -12,6 +12,7 @@ Usage:
                    [--keyfile=<keyfile>]
                    [--crlfile=<crlfile>]
                    [--proc-ttl=<proc-ttl>]
+                   [--offset=<offset>]
                    [--verbose]
   kq --help
   kq --version
@@ -27,6 +28,7 @@ Options:
   --keyfile=<keyfile>    Full path to SSL private key
   --crlfile=<crlfile>    Full path to SSL crlfile for verifying expiry
   --proc-ttl=<proc-ttl>  Records read before re-spawning process [default: 5000]
+  --offset=<offset>      Kafka consumer offset reset policy [default: latest]
   --verbose              Turn on debug logging output
   --help                 Display this help menu
   --version              Display the version of KQ
@@ -92,6 +94,7 @@ def entry_point():
 
     elif args['worker']:
         timeout = args['--timeout']
+        print(args['--offset'])
         kq.Worker(
             hosts=args['--hosts'],
             topic=args['--topic'],
@@ -102,5 +105,6 @@ def entry_point():
             certfile=args['--certfile'],
             keyfile=args['--keyfile'],
             crlfile=args['--crlfile'],
-            proc_ttl=int(args['--proc-ttl'])
+            proc_ttl=int(args['--proc-ttl']),
+            offset_policy=args['--offset']
         ).start()

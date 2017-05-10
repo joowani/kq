@@ -94,6 +94,10 @@ class Worker(object):
         (multiprocessing pool of 1 process) is re-spawned. If set to ``0``
         or ``None``, the re-spawning is disabled. Default: ``5000``.
     :type proc_ttl: int
+    :param offset_policy: Policy for resetting offsets on the Kafka consumer.
+        Value ``"earliest"`` moves the offset to the oldest available message
+        and ``"latest"`` to the most recent. Default: 'latest'.
+    :type offset_policy: str | unicode
     """
 
     def __init__(self,
@@ -106,7 +110,8 @@ class Worker(object):
                  certfile=None,
                  keyfile=None,
                  crlfile=None,
-                 proc_ttl=5000):
+                 proc_ttl=5000,
+                 offset_policy='latest'):
         self._hosts = hosts
         self._topic = topic
         self._timeout = timeout
@@ -125,7 +130,7 @@ class Worker(object):
             ssl_crlfile=crlfile,
             consumer_timeout_ms=-1,
             enable_auto_commit=False,
-            auto_offset_reset='latest',
+            auto_offset_reset=offset_policy,
         )
 
     def __del__(self):

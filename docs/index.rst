@@ -52,6 +52,7 @@ Contents
     decorator
     callback
     cli
+    logging
 
 
 Credits
