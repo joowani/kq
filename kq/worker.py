@@ -34,6 +34,7 @@ class Worker(object):
             keyfile='/my/files/keyfile',
             crlfile='/my/files/crlfile',
             proc_ttl=2000,
+            offset_policy='earliest'
         )
         worker.start()
 
@@ -96,7 +97,7 @@ class Worker(object):
     :type proc_ttl: int
     :param offset_policy: Policy for resetting offsets on the Kafka consumer.
         Value ``"earliest"`` moves the offset to the oldest available message
-        and ``"latest"`` to the most recent. Default: 'latest'.
+        and ``"latest"`` to the most recent. Default: ``"latest"``.
     :type offset_policy: str | unicode
     """
 
