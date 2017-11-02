@@ -13,16 +13,18 @@ setup(
     url='https://github.com/joowani/kq',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=[
-        'dill>=0.2.5',
-        'docopt>=0.6.2',
-        'kafka-python>=1.3.1'
-    ],
+    license='MIT',
     entry_points={
         'console_scripts': [
             'kq = kq.cli:entry_point',
         ],
     },
+    install_requires=[
+        'dill>=0.2.5',
+        'docopt>=0.6.2',
+        'kafka-python>=1.3.1'
+    ],
+    tests_require=['pytest'],
     classifiers=[
         'Intended Audience :: Developers',
         'Intended Audience :: End Users/Desktop',
