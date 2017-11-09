@@ -27,7 +27,7 @@ Options:
   --certfile=<certfile>  Full path to SSL client certificate
   --keyfile=<keyfile>    Full path to SSL private key
   --crlfile=<crlfile>    Full path to SSL crlfile for verifying expiry
-  --proc-ttl=<proc-ttl>  Records read before re-spawning process [default: 5000]
+  --proc-ttl=<proc-ttl>  Records read before respawning process [default: 5000]
   --offset=<offset>      Kafka consumer offset reset policy [default: latest]
   --verbose              Turn on debug logging output
   --help                 Display this help menu

@@ -184,9 +184,10 @@ class Worker(object):
         """
         rec = rec_repr(record)
         self._logger.info('Processing {} ...'.format(rec))
+        # noinspection PyBroadException
         try:
             job = dill.loads(record.value)
-        except:
+        except Exception:
             self._logger.warning('{} unloadable. Skipping ...'.format(rec))
         else:
             # Simple check for job validity

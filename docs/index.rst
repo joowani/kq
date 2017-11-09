@@ -13,7 +13,7 @@ Requirements
 ============
 
 - Apache Kafka 0.9+
-- Python 2.7+ 3.4+ or 3.5+
+- Python 2.7, 3.4, 3.5 or 3.6
 
 
 Installation
@@ -53,6 +53,7 @@ Contents
     callback
     cli
     logging
+    contributing
 
 
 Credits

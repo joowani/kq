@@ -161,7 +161,7 @@ def test_enqueue_job(producer, logger):
     assert new_job.args == [1, 2]
     assert new_job.kwargs == {'a': 3}
     assert new_job.timeout == 300
-    assert new_job.key == None
+    assert new_job.key is None
 
     producer_inst.send.assert_called_with(
         'foo', dill.dumps(new_job), key=None
@@ -223,4 +223,3 @@ def test_flush(producer):
     queue = Queue(hosts='host:7000', topic='foo')
     queue.flush()
     producer_inst.flush.assert_called_once()
-

@@ -55,4 +55,4 @@ Sit back and watch the worker process it in the background:
     [INFO] Job 1b92xle0 returned: (1, 2, 3)
 
 
-And that's essentially all there is to KQ! Continue for more information.
+And that's essentially all there is to KQ!

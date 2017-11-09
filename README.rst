@@ -129,6 +129,15 @@ You may need to use ``sudo`` depending on your environment setup.
 .. _GitHub: https://github.com/joowani/kq
 
 
+Contributing
+============
+
+Please have a look at this page_ before submitting a pull request. Thanks!
+
+.. _page:
+    http://kq.readthedocs.io/en/master/contributing.html
+
+
 Credits
 =======
 
