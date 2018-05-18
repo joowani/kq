@@ -1,38 +1,39 @@
 Logging
 -------
 
-By default KQ logs messages using the ``kq`` logger.
+By default, :doc:`queues <queue>` log messages via ``kq.queue`` logger, and
+:doc:`workers <worker>` log messages via ``kq.worker`` logger. You can either
+use these loggers or inject your own during queue/worker initialization.
 
-Here is an example showing how the logger can be enabled and customized:
+**Example:**
 
-.. code-block:: python
+.. testcode::
 
     import logging
 
-    from kq import Queue
+    from kafka import KafkaConsumer, KafkaProducer
+    from kq import Queue, Worker
 
-    logger = logging.getLogger('kq')
-
-    # Set the logging level
-    logger.setLevel(logging.DEBUG)
-
-    # Attach a handler
-    handler = logging.StreamHandler()
     formatter = logging.Formatter('[%(levelname)s] %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
 
-    # Enqueue function calls
-    q = Queue()
-    q.enqueue(int, 1)
-    q.enqueue(str, 1)
-    q.enqueue(bool, 1)
+    # Set up "kq.queue" logger.
+    queue_logger = logging.getLogger('kq.queue')
+    queue_logger.setLevel(logging.INFO)
+    queue_logger.addHandler(stream_handler)
 
+    # Set up "kq.worker" logger.
+    worker_logger = logging.getLogger('kq.worker')
+    worker_logger.setLevel(logging.DEBUG)
+    worker_logger.addHandler(stream_handler)
 
-The logging output for above would look something like this:
+    # Alternatively, you can inject your own loggers.
+    queue_logger = logging.getLogger('your_worker_logger')
+    worker_logger = logging.getLogger('your_worker_logger')
 
-.. code-block:: bash
+    producer = KafkaProducer(bootstrap_servers='127.0.0.1:9092')
+    consumer = KafkaConsumer(bootstrap_servers='127.0.0.1:9092', group_id='group')
 
-    [INFO] Enqueued: Job(id='64ee47d', topic='default', func=<class 'int'> ...)
-    [INFO] Enqueued: Job(id='4578f57', topic='default', func=<class 'str'> ...)
-    [INFO] Enqueued: Job(id='792643c', topic='default', func=<class 'bool'> ...)
+    queue = Queue('topic', producer, logger=queue_logger)
+    worker = Worker('topic', consumer, logger=worker_logger)

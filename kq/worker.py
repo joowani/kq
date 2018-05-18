@@ -1,291 +1,264 @@
-from __future__ import absolute_import, print_function, unicode_literals
+__all__ = ['Worker']
 
-import collections
+import _thread
 import logging
-import multiprocessing as mp
-import traceback as tb
+import math
+import threading
+import traceback
 
 import dill
-import kafka
+from kafka import KafkaConsumer
 
-from kq.job import Job
-from kq.utils import func_repr, rec_repr
+from kq.message import Message
+from kq.utils import (
+    get_call_repr,
+    is_str,
+    is_none_or_func,
+    is_none_or_logger
+)
 
 
 class Worker(object):
-    """KQ worker.
+    """Fetches :doc:`jobs <job>` from Kafka topics and processes them.
 
-    A worker fetches jobs from a Kafka broker, de-serializes them and
-    executes them asynchronously in the background. Here is an example
-    of initializing and starting a worker:
+    :param topic: Name of the Kafka topic.
+    :type topic: str
+    :param consumer: Kafka consumer instance with a group ID (required). For
+        more details on consumers, refer to kafka-python's documentation_.
+    :type consumer: kafka.KafkaConsumer_
+    :param callback: Callback function which is executed every time a job is
+        processed. See :doc:`here <callback>` for more details.
+    :type callback: callable
+    :param deserializer: Callable which takes a byte string and returns a
+        deserialized :doc:`job <job>` namedtuple. If not set, ``dill.loads``
+        is used by default. See :doc:`here <serializer>` for more details.
+    :type deserializer: callable
+    :param logger: Logger for recording worker activities. If not set, logger
+        named ``kq.worker`` is used with default settings (you need to define
+        your own formatters and handlers). See :doc:`here <logging>` for more
+        details.
+    :type logger: logging.Logger
+
+    **Example:**
 
     .. code-block:: python
 
+        from kafka import KafkaConsumer
         from kq import Worker
 
-        worker = Worker(
-            hosts='host:7000,host:8000',
-            topic='foo',
-            timeout=3600,
-            callback=None,
-            job_size=10000000,
-            cafile='/my/files/cafile',
-            certfile='/my/files/certfile',
-            keyfile='/my/files/keyfile',
-            crlfile='/my/files/crlfile',
-            proc_ttl=2000,
-            offset_policy='earliest'
+        # Set up a Kafka consumer. Group ID is required.
+        consumer = KafkaConsumer(
+            bootstrap_servers='127.0.0.1:9092',
+            group_id='group'
         )
+
+        # Set up a worker.
+        worker = Worker(topic='topic', consumer=consumer)
+
+        # Start the worker to process jobs.
         worker.start()
 
-    .. note::
-
-        The number of partitions in a Kafka topic limits how many workers
-        can read from the queue in parallel. For example, maximum of 10
-        workers can work off a queue with 10 partitions.
-
-    :param hosts: Comma-separated Kafka hostnames and ports. For example,
-        ``"localhost:9000,localhost:8000,192.168.1.1:7000"`` is a valid
-        input string. Default: ``"127.0.0.1:9092"``.
-    :type hosts: str | unicode
-    :param topic: Name of the Kafka topic. Default: ``"default"``.
-    :type topic: str | unicode
-    :param timeout: Default job timeout threshold in seconds. If not set, the
-        enqueued jobs are left to run until they finish. This means a hanging
-        job can potentially block the workers. Default: ``None`` (no timeout).
-        If set, overrides timeouts set when the jobs were first enqueued.
-    :type timeout: int
-    :param callback: Function executed after a job is fetched and processed.
-        Its signature must be ``callback(status, job, exception, traceback)``
-        where:
-
-        .. code-block:: none
-
-            status (str | unicode)
-                The status of the job execution, which can be "timeout",
-                "failure" or "success".
-
-            job (kq.job.Job)
-                The job namedtuple object consumed by the worker.
-
-            result (object)
-                The result of the job execution.
-
-            exception (Exception | None)
-                The exception raised while the job was running, or None
-                if there were no errors.
-
-            traceback (str | unicode | None)
-                The traceback of the exception raised while the job was
-                running, or None if there were no errors.
-
-    :type callback: callable
-    :param job_size: The max size of each job in bytes. Default: ``1048576``.
-    :type job_size: int
-    :param cafile: Full path to the trusted CA certificate file.
-    :type cafile: str | unicode
-    :param certfile: Full path to the client certificate file.
-    :type certfile: str | unicode
-    :param keyfile: Full path to the client private key file.
-    :type keyfile: str | unicode
-    :param crlfile: Full path to the CRL file for validating certification
-        expiry. This option is only available with Python 3.4+ or 2.7.9+.
-    :type crlfile: str | unicode
-    :param proc_ttl: The number of records read before the worker's process
-        (multiprocessing pool of 1 process) is re-spawned. If set to ``0``
-        or ``None``, the re-spawning is disabled. Default: ``5000``.
-    :type proc_ttl: int
-    :param offset_policy: Policy for resetting offsets on the Kafka consumer.
-        Value ``"earliest"`` moves the offset to the oldest available message
-        and ``"latest"`` to the most recent. Default: ``"latest"``.
-    :type offset_policy: str | unicode
+    .. _documentation:
+        http://kafka-python.rtfd.io/en/master/#kafkaconsumer
+    .. _kafka.KafkaConsumer:
+        http://kafka-python.rtfd.io/en/master/apidoc/KafkaConsumer.html
     """
 
     def __init__(self,
-                 hosts='127.0.0.1:9092',
-                 topic='default',
-                 timeout=None,
+                 topic,
+                 consumer,
                  callback=None,
-                 job_size=1048576,
-                 cafile=None,
-                 certfile=None,
-                 keyfile=None,
-                 crlfile=None,
-                 proc_ttl=5000,
-                 offset_policy='latest'):
-        self._hosts = hosts
-        self._topic = topic
-        self._timeout = timeout
-        self._callback = callback
-        self._pool = None
-        self._proc_ttl = proc_ttl
-        self._logger = logging.getLogger('kq')
-        self._consumer = kafka.KafkaConsumer(
-            self._topic,
-            group_id=self._topic,
-            bootstrap_servers=self._hosts,
-            max_partition_fetch_bytes=job_size * 2,
-            ssl_cafile=cafile,
-            ssl_certfile=certfile,
-            ssl_keyfile=keyfile,
-            ssl_crlfile=crlfile,
-            consumer_timeout_ms=-1,
-            enable_auto_commit=False,
-            auto_offset_reset=offset_policy,
-        )
+                 deserializer=None,
+                 logger=None):
 
-    def __del__(self):
-        """Commit the Kafka consumer offsets and close the consumer."""
-        if hasattr(self, '_consumer'):
-            try:
-                self._logger.info('Closing consumer ...')
-                self._consumer.close()
-            except Exception as e:  # pragma: no cover
-                self._logger.warning('Failed to close consumer: {}'.format(e))
+        assert is_str(topic), 'topic must be a str'
+        assert isinstance(consumer, KafkaConsumer), 'bad consumer instance'
+        assert consumer.config['group_id'], 'consumer must have group_id'
+        assert is_none_or_func(callback), 'callback must be a callable'
+        assert is_none_or_func(deserializer), 'deserializer must be a callable'
+        assert is_none_or_logger(logger), 'bad logger instance'
+
+        self._topic = topic
+        self._hosts = consumer.config['bootstrap_servers']
+        self._group = consumer.config['group_id']
+        self._consumer = consumer
+        self._callback = callback
+        self._deserializer = deserializer or dill.loads
+        self._logger = logger or logging.getLogger('kq.worker')
 
     def __repr__(self):
-        """Return a string representation of the worker.
+        """Return the string representation of the worker.
 
-        :return: string representation of the worker
-        :rtype: str | unicode
+        :return: String representation of the worker.
+        :rtype: str
         """
-        return 'Worker(topic={})'.format(self._topic)
+        return 'Worker(hosts={}, topic={}, group={})'.format(
+            self._hosts, self._topic, self._group
+        )
 
-    def _exec_callback(self, status, job, result, exception, traceback):
-        """Execute the callback in a try-except block.
+    def __del__(self):  # pragma: no cover
+        # noinspection PyBroadException
+        try:
+            self._consumer.close()
+        except Exception:
+            pass
 
-        :param status: The status of the job consumption. Possible values are
-            ``timeout', ``failure`` and ``success``.
-        :type status: str | unicode
-        :param job: The job consumed by the worker
-        :type job: kq.job.Job
-        :param result: The result of the job execution.
-        :type result: object
-        :param exception: Exception raised while the job was running (i.e.
-            status was ``failure``), or ``None`` if there were no errors
-            (i.e. status was ``success``).
-        :type exception: Exception | None
-        :param traceback: The stacktrace of the exception (i.e. status was
-            ``failure``) was running or ``None`` if there were no errors.
-        :type traceback: str | unicode | None
+    def _execute_callback(self, status, message, job, res, err, stacktrace):
+        """Execute the callback.
+
+        :param status: Job status. Possible values are "invalid" (job could not
+            be deserialized or was malformed), "failure" (job raised an error),
+            "timeout" (job timed out), or "success" (job finished successfully
+            and returned a result).
+        :type status: str
+        :param message: Kafka message.
+        :type message: :doc:`kq.Message <message>`
+        :param job: Job object, or None if **status** was "invalid".
+        :type job: kq.Job
+        :param res: Job result, or None if an exception was raised.
+        :type res: object | None
+        :param err: Exception raised by job, or None if there was none.
+        :type err: Exception | None
+        :param stacktrace: Exception traceback, or None if there was none.
+        :type stacktrace: str | None
         """
         if self._callback is not None:
             try:
                 self._logger.info('Executing callback ...')
-                self._callback(status, job, result, exception, traceback)
+                self._callback(status, message, job, res, err, stacktrace)
             except Exception as e:
-                self._logger.exception('Callback failed: {}'.format(e))
+                self._logger.exception(
+                    'Callback raised an exception: {}'.format(e))
 
-    def _consume_record(self, record):
-        """De-serialize the message and execute the incoming job.
+    def _process_message(self, msg):
+        """De-serialize the message and execute the job.
 
-        :param record: Record fetched from the Kafka topic.
-        :type record: kafka.consumer.fetcher.ConsumerRecord
+        :param msg: Kafka message.
+        :type msg: :doc:`kq.Message <message>`
         """
-        rec = rec_repr(record)
-        self._logger.info('Processing {} ...'.format(rec))
-        # noinspection PyBroadException
+        self._logger.info(
+            'Processing Message(topic={}, partition={}, offset={}) ...'
+            .format(msg.topic, msg.partition, msg.offset))
         try:
-            job = dill.loads(record.value)
-        except Exception:
-            self._logger.warning('{} unloadable. Skipping ...'.format(rec))
+            job = self._deserializer(msg.value)
+            job_repr = get_call_repr(job.func, *job.args, **job.kwargs)
+
+        except Exception as err:
+            self._logger.exception('Job was invalid: {}'.format(err))
+            self._execute_callback('invalid', msg, None, None, None, None)
         else:
-            # Simple check for job validity
-            if not (isinstance(job, Job)
-                    and isinstance(job.args, collections.Iterable)
-                    and isinstance(job.kwargs, collections.Mapping)
-                    and callable(job.func)):
-                self._logger.warning('{} malformed. Skipping ...'.format(rec))
-                return
-            func, args, kwargs = job.func, job.args, job.kwargs
-            self._logger.info('Running Job {}: {} ...'.format(
-                job.id, func_repr(func, args, kwargs)
-            ))
+            self._logger.info('Executing job {}: {}'.format(job.id, job_repr))
+
+            if job.timeout:
+                timer = threading.Timer(job.timeout, _thread.interrupt_main)
+                timer.start()
+            else:
+                timer = None
             try:
-                timeout = self._timeout or job.timeout
-                if timeout is None:
-                    res = func(*args, **kwargs)
-                else:
-                    run = self._pool.apply_async(func, args, kwargs)
-                    res = run.get(timeout)
-            except mp.TimeoutError:
-                self._logger.error('Job {} timed out after {} seconds.'
-                                   .format(job.id, job.timeout))
-                self._exec_callback('timeout', job, None, None, None)
-            except Exception as e:
-                self._logger.exception('Job {} failed: {}'.format(job.id, e))
-                self._exec_callback('failure', job, None, e, tb.format_exc())
+                res = job.func(*job.args, **job.kwargs)
+            except KeyboardInterrupt:
+                self._logger.error(
+                    'Job {} timed out or was interrupted'.format(job.id))
+                self._execute_callback('timeout', msg, job, None, None, None)
+            except Exception as err:
+                self._logger.exception(
+                    'Job {} raised an exception:'.format(job.id))
+                tb = traceback.format_exc()
+                self._execute_callback('failure', msg, job, None, err, tb)
             else:
                 self._logger.info('Job {} returned: {}'.format(job.id, res))
-                self._exec_callback('success', job, res, None, None)
-
-    def _refresh_pool(self):
-        """Terminate the previous process pool and initialize a new one."""
-        self._logger.info('Refreshing process pool ...')
-        try:
-            self._pool.terminate()
-        except Exception as e:  # pragma: no cover
-            self._logger.exception('Failed to terminate pool: {}'.format(e))
-        finally:
-            self._pool = mp.Pool(processes=1)
-
-    @property
-    def consumer(self):
-        """Return the Kafka consumer object.
-
-        :return: Kafka consumer object.
-        :rtype: kafka.consumer.KafkaConsumer
-        """
-        return self._consumer
+                self._execute_callback('success', msg, job, res, None, None)
+            finally:
+                if timer is not None:
+                    timer.cancel()
 
     @property
     def hosts(self):
-        """Return the list of Kafka host names and ports.
+        """Return comma-separated Kafka hosts and ports string.
 
-        :return: list of Kafka host names and ports
-        :rtype: [str]
+        :return: Comma-separated Kafka hosts and ports.
+        :rtype: str
         """
-        return self._hosts.split(',')
+        return self._hosts
 
     @property
     def topic(self):
-        """Return the name of the Kafka topic in use.
+        """Return the name of the Kafka topic.
 
-        :return: Name of the Kafka topic in use.
-        :rtype: str | unicode
+        :return: Name of the Kafka topic.
+        :rtype: str
         """
         return self._topic
 
     @property
-    def timeout(self):
-        """Return the job timeout threshold in seconds.
+    def group(self):
+        """Return the Kafka consumer group ID.
 
-        :return: Job timeout threshold in seconds.
+        :return: Kafka consumer group ID.
+        :rtype: str
+        """
+        return self._group
+
+    @property
+    def consumer(self):
+        """Return the Kafka consumer instance.
+
+        :return: Kafka consumer instance.
+        :rtype: kafka.KafkaConsumer
+        """
+        return self._consumer
+
+    @property
+    def deserializer(self):
+        """Return the deserializer function.
+
+        :return: Deserializer function.
+        :rtype: callable
+        """
+        return self._deserializer
+
+    @property
+    def callback(self):
+        """Return the callback function.
+
+        :return: Callback function, or None if not set.
+        :rtype: callable | None
+        """
+        return self._callback
+
+    def start(self, max_messages=math.inf, commit_offsets=True):
+        """Start processing Kafka messages and executing jobs.
+
+        :param max_messages: Maximum number of Kafka messages to process before
+            stopping. If not set, worker runs until interrupted.
+        :type max_messages: int
+        :param commit_offsets: If set to True, consumer offsets are committed
+            every time a message is processed (default: True).
+        :type commit_offsets: bool
+        :return: Total number of messages processed.
         :rtype: int
         """
-        return self._timeout
-
-    def start(self):
-        """Start fetching and processing enqueued jobs in the topic.
-
-        Once started, the worker will continuously poll the Kafka broker in
-        a loop until jobs are available in the topic partitions. The loop is
-        only stopped via external triggers (e.g. keyboard interrupts).
-        """
         self._logger.info('Starting {} ...'.format(self))
-        self._pool = mp.Pool(processes=1)
-        records_read = 0
 
-        try:
-            for record in self._consumer:
-                self._consume_record(record)
+        self._consumer.unsubscribe()
+        self._consumer.subscribe([self.topic])
+
+        messages_processed = 0
+        while messages_processed < max_messages:
+            record = next(self._consumer)
+
+            message = Message(
+                topic=record.topic,
+                partition=record.partition,
+                offset=record.offset,
+                key=record.key,
+                value=record.value
+            )
+            self._process_message(message)
+
+            if commit_offsets:
                 self._consumer.commit()
-                if self._proc_ttl and records_read >= self._proc_ttl:
-                    self._refresh_pool()
-                    records_read = 0
-                else:
-                    records_read += 1
 
-        except KeyboardInterrupt:  # pragma: no cover
-            self._logger.info('Stopping {} ...'.format(self))
-            self._pool.terminate()  # TODO not sure if necessary
+            messages_processed += 1
+
+        return messages_processed

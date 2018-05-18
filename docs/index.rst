@@ -1,20 +1,15 @@
 KQ: Kafka-based Job Queue for Python
 ------------------------------------
 
-Welcome to the documentation for **KQ (Kafka Queue)**, a light-weight Python
-library which provides a simple API to queue and process jobs asynchronously
-in the background. It is backed by `Apache Kafka`_ and designed primarily for
-ease of use.
-
-.. _Apache Kafka: https://kafka.apache.org
-
+Welcome to the documentation for **KQ (Kafka Queue)**, a lightweight Python
+library which lets you queue and execute jobs asynchronously using `Apache Kafka`_.
+It uses kafka-python_ under the hood.
 
 Requirements
 ============
 
-- Apache Kafka 0.9+
-- Python 2.7, 3.4, 3.5 or 3.6
-
+- `Apache Kafka`_ 0.9+
+- Python 3.5+
 
 Installation
 ============
@@ -25,18 +20,13 @@ To install a stable version from PyPI_ (recommended):
 
     ~$ pip install kq
 
-
 To install the latest version directly from GitHub_:
 
 .. code-block:: bash
 
     ~$ pip install -e git+git@github.com:joowani/kq.git@master#egg=kq
 
-You may need to use ``sudo`` depending on your environment setup.
-
-.. _PyPI: https://pypi.python.org/pypi/kq
-.. _GitHub: https://github.com/joowani/kq
-
+You may need to use ``sudo`` depending on your environment.
 
 Contents
 ========
@@ -48,18 +38,13 @@ Contents
     queue
     worker
     job
-    manager
-    decorator
+    message
     callback
-    cli
+    serializer
     logging
     contributing
 
-
-Credits
-=======
-
-This project was inspired by RQ_ and built on top of kafka-python_.
-
-.. _RQ: https://github.com/nvie/rq
+.. _Apache Kafka: https://kafka.apache.org
 .. _kafka-python: https://github.com/dpkp/kafka-python
+.. _PyPI: https://pypi.python.org/pypi/kq
+.. _GitHub: https://github.com/joowani/kq

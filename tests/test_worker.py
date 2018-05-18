@@ -1,282 +1,120 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
-from collections import namedtuple
-
-import dill
-import mock
 import pytest
 
-from kq import Job, Worker
+from kafka import KafkaConsumer
 
-from .utils import (
-    success_func,
-    failure_func,
-    timeout_func
-)
-
-MockRecord = namedtuple(
-    'MockRecord',
-    ['topic', 'partition', 'offset', 'value']
-)
-# Mocks for patching KafkaConsumer
-mock_consumer = mock.MagicMock()
-mock_consumer.topics.return_value = ['foo', 'bar', 'baz']
-mock_consumer.partitions_for_topic.return_value = [1, 2, 3]
-mock_consumer.position.return_value = 100
-mock_consumer_cls = mock.MagicMock()
-mock_consumer_cls.return_value = mock_consumer
-
-# Mocks for patching the logging module
-success_job = Job(
-    id='100',
-    timestamp=1,
-    topic='foo',
-    func=success_func,
-    args=[1, 2],
-    kwargs={'c': 3},
-    timeout=None,
-)
-failure_job = Job(
-    id='200',
-    timestamp=2,
-    topic='foo',
-    func=failure_func,
-    args=[1, 2, 3],
-    kwargs={},
-    timeout=100,
-)
-timeout_job = Job(
-    id='300',
-    timestamp=3,
-    topic='foo',
-    func=timeout_func,
-    args=[2, 3, 4],
-    kwargs={},
-    timeout=100,
-)
-value1 = dill.dumps(success_job)
-value2 = dill.dumps(failure_job)
-value3 = dill.dumps(timeout_job)
-value4 = 'This is an unpicklable value'
-value5 = dill.dumps(['This is not a job!'])
-
-# Mocks for consumer records
-rec11 = MockRecord(topic='foo', partition=1, offset=1, value=value1)
-rec11_repr = 'Record(topic=foo, partition=1, offset=1)'
-rec12 = MockRecord(topic='foo', partition=1, offset=2, value=value2)
-rec12_repr = 'Record(topic=foo, partition=1, offset=2)'
-rec21 = MockRecord(topic='foo', partition=2, offset=1, value=value3)
-rec21_repr = 'Record(topic=foo, partition=2, offset=1)'
-rec22 = MockRecord(topic='foo', partition=2, offset=2, value=value4)
-rec22_repr = 'Record(topic=foo, partition=2, offset=2)'
-rec34 = MockRecord(topic='foo', partition=3, offset=4, value=value5)
-rec34_repr = 'Record(topic=foo, partition=3, offset=4)'
+from kq import Worker
 
 
-@pytest.fixture(autouse=True)
-def consumer(monkeypatch):
-    monkeypatch.setattr('kafka.KafkaConsumer', mock_consumer_cls)
-    mock_consumer.reset_mock()
+def test_worker_properties(worker, hosts, topic, group):
+    assert hosts in repr(worker)
+    assert topic in repr(worker)
+    assert group in repr(worker)
+
+    assert worker.consumer.config['bootstrap_servers'] == hosts
+    assert worker.consumer.config['group_id'] == group
+
+    assert isinstance(worker.hosts, str) and worker.hosts == hosts
+    assert isinstance(worker.topic, str) and worker.topic == topic
+    assert isinstance(worker.group, str) and worker.group == group
+    assert isinstance(worker.consumer, KafkaConsumer)
+    assert callable(worker.deserializer)
+    assert callable(worker.callback) or worker.callback is None
 
 
-@pytest.fixture(autouse=True)
-def logger(monkeypatch):
-    mock_logger = mock.MagicMock()
-    mock_get_logger = mock.MagicMock()
-    mock_get_logger.return_value = mock_logger
-    monkeypatch.setattr('logging.getLogger', mock_get_logger)
-    return mock_logger
+# noinspection PyTypeChecker
+def test_worker_initialization_with_bad_args(hosts, consumer):
+    with pytest.raises(AssertionError) as e:
+        Worker(topic=True, consumer=consumer)
+    assert str(e.value) == 'topic must be a str'
+
+    with pytest.raises(AssertionError) as e:
+        Worker(topic='topic', consumer='bar')
+    assert str(e.value) == 'bad consumer instance'
+
+    with pytest.raises(AssertionError) as e:
+        bad_consumer = KafkaConsumer(bootstrap_servers=hosts)
+        Worker(topic='topic', consumer=bad_consumer)
+    assert str(e.value) == 'consumer must have group_id'
+
+    with pytest.raises(AssertionError) as e:
+        Worker(topic='topic', consumer=consumer, callback=1)
+    assert str(e.value) == 'callback must be a callable'
+
+    with pytest.raises(AssertionError) as e:
+        Worker(topic='topic', consumer=consumer, deserializer=1)
+    assert str(e.value) == 'deserializer must be a callable'
+
+    with pytest.raises(AssertionError) as e:
+        Worker(topic='topic', consumer=consumer, logger=1)
+    assert str(e.value) == 'bad logger instance'
 
 
-@pytest.fixture(autouse=True)
-def callback():
-    return mock.MagicMock()
+def test_worker_run_success_function(queue, worker, success_func, log):
+    job = queue.enqueue(success_func, 1, 2)
+    worker.start(max_messages=1)
+
+    out = log.last_lines(7)
+    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
+    assert next(out).startswith('[INFO] Starting {}'.format(worker))
+    assert next(out).startswith('[INFO] Processing Message')
+    assert next(out).startswith('[INFO] Executing job {}'.format(job.id))
+    assert next(out).startswith('[INFO] Job {} returned: 2'.format(job.id))
+    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith('[INFO] Callback got job status "success"')
 
 
-def test_init(logger, callback):
-    worker = Worker(
-        hosts='host:7000,host:8000',
-        topic='foo',
-        timeout=1000,
-        callback=callback,
-        job_size=10000000,
-        cafile='/test/files/cafile',
-        certfile='/test/files/certfile',
-        keyfile='/test/files/keyfile',
-        crlfile='/test/files/crlfile'
-    )
-    mock_consumer_cls.assert_called_once_with(
-        'foo',
-        group_id='foo',
-        bootstrap_servers='host:7000,host:8000',
-        max_partition_fetch_bytes=20000000,
-        ssl_cafile='/test/files/cafile',
-        ssl_certfile='/test/files/certfile',
-        ssl_keyfile='/test/files/keyfile',
-        ssl_crlfile='/test/files/crlfile',
-        consumer_timeout_ms=-1,
-        enable_auto_commit=False,
-        auto_offset_reset='latest',
-    )
-    assert repr(worker) == 'Worker(topic=foo)'
-    assert worker.hosts == ['host:7000', 'host:8000']
-    assert worker.timeout == 1000
-    assert worker.topic == 'foo'
-    assert worker.consumer == mock_consumer
-    assert not callback.called
-    assert not logger.info.called
+def test_worker_run_failure_function(queue, worker, failure_func, log):
+    job = queue.enqueue(failure_func, 2, 3)
+    worker.start(max_messages=1)
+
+    out = log.last_lines(7)
+    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
+    assert next(out).startswith('[INFO] Starting {}'.format(worker))
+    assert next(out).startswith('[INFO] Processing Message')
+    assert next(out).startswith('[INFO] Executing job {}'.format(job.id))
+    assert next(out).startswith('[ERROR] Job {} raised'.format(job.id))
+    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith('[INFO] Callback got job status "failure"')
 
 
-def test_start_job_success(logger, callback):
-    mock_consumer.__iter__ = lambda x: iter([rec11])
-    worker = Worker(
-        hosts='localhost',
-        topic='foo',
-        callback=callback,
-    )
-    worker.start()
-    logger.info.assert_has_calls([
-        mock.call('Starting Worker(topic=foo) ...'),
-        mock.call('Processing {} ...'.format(rec11_repr)),
-        mock.call('Running Job 100: tests.utils.success_func(1, 2, c=3) ...'),
-        mock.call('Job 100 returned: (1, 2, 3)'),
-        mock.call('Executing callback ...')
-    ])
-    callback.assert_called_once_with(
-        'success', success_job, (1, 2, 3), None, None
-    )
+def test_worker_run_timeout_function(queue, worker, timeout_func, log):
+    job = queue.using(timeout=0.5).enqueue(timeout_func, 3, 4)
+    worker.start(max_messages=1)
+
+    out = log.last_lines(7)
+    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
+    assert next(out).startswith('[INFO] Starting {}'.format(worker))
+    assert next(out).startswith('[INFO] Processing Message')
+    assert next(out).startswith('[INFO] Executing job {}'.format(job.id))
+    assert next(out).startswith('[ERROR] Job {} timed out'.format(job.id))
+    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith('[INFO] Callback got job status "timeout"')
 
 
-def test_start_job_failure(logger, callback):
-    mock_consumer.__iter__ = lambda x: iter([rec12])
-    worker = Worker(
-        hosts='localhost',
-        topic='foo',
-        timeout=1000,
-        callback=callback,
-    )
-    worker.start()
-    logger.info.assert_has_calls([
-        mock.call('Starting Worker(topic=foo) ...'),
-        mock.call('Processing {} ...'.format(rec12_repr)),
-        mock.call('Running Job 200: tests.utils.failure_func(1, 2, 3) ...'),
-        mock.call('Executing callback ...')
-    ])
-    logger.exception.assert_called_with('Job 200 failed: failed!')
-    assert len(callback.call_args_list) == 1
+def test_worker_run_bad_callback(queue, worker, success_func, callback, log):
+    job = queue.enqueue(success_func, 4, 5)
+    callback.succeed = False
+    worker.start(max_messages=1)
 
-    callback_args = callback.call_args_list[0][0]
-    assert callback_args[0] == 'failure'
-    assert callback_args[1] == failure_job
-    assert callback_args[2] is None
-    assert isinstance(callback_args[3], ValueError)
-    assert isinstance(callback_args[4], str)
+    out = log.last_lines(7)
+    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
+    assert next(out).startswith('[INFO] Starting {}'.format(worker))
+    assert next(out).startswith('[INFO] Processing Message')
+    assert next(out).startswith('[INFO] Executing job {}'.format(job.id))
+    assert next(out).startswith('[INFO] Job {} returned: 20'.format(job.id))
+    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith('[ERROR] Callback raised an exception')
 
 
-def test_start_job_timeout(logger, callback):
-    mock_consumer.__iter__ = lambda x: iter([rec21])
-    worker = Worker(
-        hosts='localhost',
-        topic='foo',
-        timeout=1000,
-        callback=callback,
-    )
-    worker.start()
-    logger.info.assert_has_calls([
-        mock.call('Starting Worker(topic=foo) ...'),
-        mock.call('Processing {} ...'.format(rec21_repr)),
-        mock.call('Running Job 300: tests.utils.timeout_func(2, 3, 4) ...'),
-        mock.call('Executing callback ...')
-    ])
-    logger.error.assert_called_once_with(
-        'Job 300 timed out after 100 seconds.'
-    )
-    callback.assert_called_once_with(
-        'timeout', timeout_job, None, None, None
-    )
+def test_worker_run_bad_job(queue, worker, success_func, deserializer, log):
+    job = queue.enqueue(success_func, 5, 6)
+    deserializer.succeed = False
+    worker.start(max_messages=1)
 
-
-def test_start_job_unloadable(logger, callback):
-    mock_consumer.__iter__ = lambda x: iter([rec22])
-    worker = Worker(
-        hosts='localhost',
-        topic='foo',
-        timeout=1000,
-        callback=callback,
-    )
-    worker.start()
-    logger.info.assert_has_calls([
-        mock.call('Starting Worker(topic=foo) ...'),
-        mock.call('Processing {} ...'.format(rec22_repr)),
-    ])
-    logger.warning.assert_called_once_with(
-        '{} unloadable. Skipping ...'.format(rec22_repr)
-    )
-    assert not callback.called
-
-
-def test_start_job_malformed(logger, callback):
-    mock_consumer.__iter__ = lambda x: iter([rec34])
-    worker = Worker(
-        hosts='localhost',
-        topic='foo',
-        timeout=1000,
-        callback=callback,
-    )
-    worker.start()
-    logger.info.assert_has_calls([
-        mock.call('Starting Worker(topic=foo) ...'),
-        mock.call('Processing {} ...'.format(rec34_repr)),
-    ])
-    logger.warning.assert_called_once_with(
-        '{} malformed. Skipping ...'.format(rec34_repr)
-    )
-    assert not callback.called
-
-
-def test_start_job_callback_fail(logger, callback):
-    mock_consumer.__iter__ = lambda x: iter([rec11])
-    expected_error = KeyError('foo')
-    callback.side_effect = expected_error
-    worker = Worker(
-        hosts='localhost',
-        topic='foo',
-        callback=callback,
-    )
-    worker.start()
-    logger.info.assert_has_calls([
-        mock.call('Starting Worker(topic=foo) ...'),
-        mock.call('Processing {} ...'.format(rec11_repr)),
-        mock.call('Running Job 100: tests.utils.success_func(1, 2, c=3) ...'),
-        mock.call('Job 100 returned: (1, 2, 3)'),
-        mock.call('Executing callback ...')
-    ])
-    logger.exception.assert_called_once_with(
-        'Callback failed: {}'.format(expected_error)
-    )
-
-
-def test_start_proc_ttl_reached(logger, callback):
-    mock_consumer.__iter__ = lambda x: iter([rec11, rec11])
-    worker = Worker(
-        hosts='localhost',
-        topic='foo',
-        callback=callback,
-        proc_ttl=1,
-    )
-    worker.start()
-    logger.info.assert_has_calls([
-        mock.call('Starting Worker(topic=foo) ...'),
-        mock.call('Processing {} ...'.format(rec11_repr)),
-        mock.call('Running Job 100: tests.utils.success_func(1, 2, c=3) ...'),
-        mock.call('Job 100 returned: (1, 2, 3)'),
-        mock.call('Executing callback ...'),
-        mock.call('Processing {} ...'.format(rec11_repr)),
-        mock.call('Running Job 100: tests.utils.success_func(1, 2, c=3) ...'),
-        mock.call('Job 100 returned: (1, 2, 3)'),
-        mock.call('Executing callback ...'),
-        mock.call('Refreshing process pool ...'),
-    ])
-    callback.assert_called_with(
-        'success', success_job, (1, 2, 3), None, None
-    )
+    out = log.last_lines(6)
+    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
+    assert next(out).startswith('[INFO] Starting {}'.format(worker))
+    assert next(out).startswith('[INFO] Processing Message')
+    assert next(out).startswith('[ERROR] Job was invalid')
+    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith('[INFO] Callback got job status "invalid"')

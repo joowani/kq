@@ -1,322 +1,359 @@
-from __future__ import absolute_import, print_function, unicode_literals
+__all__ = ['Queue']
 
-import functools
 import logging
 import time
 import uuid
 
 import dill
-import kafka
+from kafka import KafkaProducer
 
 from kq.job import Job
+from kq.utils import (
+    is_dict,
+    is_iter,
+    is_number,
+    is_str,
+    is_none_or_bytes,
+    is_none_or_func,
+    is_none_or_int,
+    is_none_or_logger,
+)
 
 
 class Queue(object):
-    """KQ queue.
+    """Enqueues function calls in Kafka topics as :doc:`jobs <job>`.
 
-    A queue serializes incoming function calls and places them into a Kafka
-    topic as *jobs*. Workers fetch these jobs and execute them asynchronously
-    in the background. Here is an example of initializing and using a queue:
+    :param topic: Name of the Kafka topic.
+    :type topic: str
+    :param producer: Kafka producer instance. For more details on producers,
+        refer to kafka-python's `documentation
+        <http://kafka-python.rtfd.io/en/master/#kafkaproducer>`_.
+    :type producer: kafka.KafkaProducer_
+    :param serializer: Callable which takes a :doc:`job <job>` namedtuple and
+        returns a serialized byte string. If not set, ``dill.dumps`` is used
+        by default. See :doc:`here <serializer>` for more details.
+    :type serializer: callable
+    :param timeout: Default job timeout threshold in seconds. If left at 0
+        (default), jobs run until completion. This value can be overridden
+        when enqueueing jobs.
+    :type timeout: int | float
+    :param logger: Logger for recording queue activities. If not set, logger
+        named ``kq.queue`` is used with default settings (you need to define
+        your own formatters and handlers). See :doc:`here <logging>` for more
+        details.
+    :type logger: logging.Logger
 
-    .. code-block:: python
+    **Example:**
 
-        from kq import Queue, Job
+    .. testcode::
 
-        queue = Queue(
-            hosts='host:7000,host:8000',
-            topic='foo',
-            timeout=3600,
-            compression='gzip',
-            acks=0,
-            retries=5,
-            job_size=10000000,
-            cafile='/my/files/cafile',
-            certfile='/my/files/certfile',
-            keyfile='/my/files/keyfile',
-            crlfile='/my/files/crlfile'
-        )
-        job = queue.enqueue(my_func, *args, **kwargs)
-        assert isinstance(job, Job)
+        import requests
 
-    .. note::
+        from kafka import KafkaProducer
+        from kq import Queue
 
-        The number of partitions in a Kafka topic limits how many workers
-        can read from the queue in parallel. For example, maximum of 10
-        workers can work off a queue with 10 partitions.
+        # Set up a Kafka producer.
+        producer = KafkaProducer(bootstrap_servers='127.0.0.1:9092')
 
+        # Set up a queue.
+        queue = Queue(topic='topic', producer=producer, timeout=3600)
 
-    :param hosts: Comma-separated Kafka hostnames and ports. For example,
-        ``"localhost:9000,localhost:8000,192.168.1.1:7000"`` is a valid input
-        string. Default: ``"127.0.0.1:9092"``.
-    :type hosts: str | unicode
-    :param topic: Name of the Kafka topic. Default: ``"default"``.
-    :type topic: str | unicode
-    :param timeout: Default job timeout threshold in seconds. If not set, the
-        enqueued jobs are left to run until they finish. This means a hanging
-        job can potentially block the workers. Default: ``None`` (no timeout).
-    :type timeout: int
-    :param compression: The algorithm used for compressing job data. Allowed
-        values are: ``"gzip"``, ``"snappy"`` and ``"lz4"``. Default: ``None``
-        (no compression).
-    :type compression: str | unicode
-    :param acks: The number of acknowledgements required from the broker(s)
-        before considering a job successfully enqueued. Allowed values are:
+        # Enqueue a function call.
+        job = queue.enqueue(requests.get, 'https://www.google.com/')
 
-        .. code-block:: none
-
-            0: Do not wait for any acknowledgment from the broker leader
-               and consider the job enqueued as soon as it is added to
-               the socket buffer. Persistence is not guaranteed on broker
-               failures.
-
-            1: Wait for the job to be saved on the broker leader but not
-               for it be replicated across other brokers. If the leader
-               broker fails before the replication finishes the job may
-               not be persisted.
-
-           -1: Wait for the job to be replicated across all brokers. As
-               long as one of the brokers is functional job persistence
-               is guaranteed.
-
-        Default: ``1``.
-
-    :type acks: int
-    :param retries: The maximum number of attempts to re-enqueue a job when
-        the job fails to reach the broker. Retries may alter the sequence of
-        the enqueued jobs. Default: ``0``.
-    :type retries: int
-    :param job_size: The max size of each job in bytes. Default: ``1048576``.
-    :type job_size: int
-    :param cafile: Full path to the trusted CA certificate file.
-    :type cafile: str | unicode
-    :param certfile: Full path to the client certificate file.
-    :type certfile: str | unicode
-    :param keyfile: Full path to the client private key file.
-    :type keyfile: str | unicode
-    :param crlfile: Full path to the CRL file for validating certification
-        expiry. This option is only available with Python 3.4+ or 2.7.9+.
-    :type crlfile: str | unicode
+    .. _kafka.KafkaProducer:
+        http://kafka-python.rtfd.io/en/master/apidoc/KafkaProducer.html
     """
 
     def __init__(self,
-                 hosts='127.0.0.1:9092',
-                 topic='default',
-                 timeout=None,
-                 compression=None,
-                 acks=1,
-                 retries=0,
-                 job_size=1048576,
-                 cafile=None,
-                 certfile=None,
-                 keyfile=None,
-                 crlfile=None):
-        self._hosts = hosts
+                 topic,
+                 producer,
+                 serializer=None,
+                 timeout=0,
+                 logger=None):
+
+        assert is_str(topic), 'topic must be a str'
+        assert isinstance(producer, KafkaProducer), 'bad producer instance'
+        assert is_none_or_func(serializer), 'serializer must be a callable'
+        assert is_number(timeout), 'timeout must be an int or float'
+        assert timeout >= 0, 'timeout must be 0 or greater'
+        assert is_none_or_logger(logger), 'bad logger instance'
+
         self._topic = topic
+        self._hosts = producer.config['bootstrap_servers']
+        self._producer = producer
+        self._serializer = serializer or dill.dumps
         self._timeout = timeout
-        self._logger = logging.getLogger('kq')
-        self._producer = kafka.KafkaProducer(
-            bootstrap_servers=self._hosts,
-            compression_type=compression,
-            acks=acks,
-            retries=retries,
-            max_request_size=job_size,
-            buffer_memory=max(job_size, 33554432),
-            ssl_cafile=cafile,
-            ssl_certfile=certfile,
-            ssl_keyfile=keyfile,
-            ssl_crlfile=crlfile
+        self._logger = logger or logging.getLogger('kq.queue')
+        self._default_enqueue_spec = EnqueueSpec(
+            topic=self._topic,
+            producer=self._producer,
+            serializer=self._serializer,
+            logger=self._logger,
+            timeout=self._timeout,
+            key=None,
+            partition=None
         )
 
     def __repr__(self):
-        """Return a string representation of the queue.
+        """Return the string representation of the queue.
 
         :return: String representation of the queue.
-        :rtype: str | unicode
+        :rtype: str
         """
-        return 'Queue(topic={})'.format(self._topic)
+        return 'Queue(hosts={}, topic={})'.format(self._hosts, self._topic)
 
-    @property
-    def producer(self):
-        """Return the Kafka producer object.
-
-        :return: Kafka producer object.
-        :rtype: kafka.producer.KafkaProducer
-        """
-        return self._producer
+    def __del__(self):  # pragma: no covers
+        # noinspection PyBroadException
+        try:
+            self._producer.close()
+        except Exception:
+            pass
 
     @property
     def hosts(self):
-        """Return the list of Kafka host names and ports.
+        """Return comma-separated Kafka hosts and ports string.
 
-        :return: List of Kafka host names and ports.
-        :rtype: [str]
+        :return: Comma-separated Kafka hosts and ports.
+        :rtype: str
         """
-        return self._hosts.split(',')
+        return self._hosts
 
     @property
     def topic(self):
-        """Return the name of the Kafka topic in use.
+        """Return the name of the Kafka topic.
 
-        :return: Name of the Kafka topic in use.
-        :rtype: str | unicode
+        :return: Name of the Kafka topic.
+        :rtype: str
         """
         return self._topic
 
     @property
-    def timeout(self):
-        """Return the job timeout threshold in seconds.
+    def producer(self):
+        """Return the Kafka producer instance.
 
-        :return: Job timeout threshold in seconds.
-        :rtype: int
+        :return: Kafka producer instance.
+        :rtype: kafka.KafkaProducer
+        """
+        return self._producer
+
+    @property
+    def serializer(self):
+        """Return the serializer function.
+
+        :return: Serializer function.
+        :rtype: callable
+        """
+        return self._serializer
+
+    @property
+    def timeout(self):
+        """Return the default job timeout threshold in seconds.
+
+        :return: Default job timeout threshold in seconds.
+        :rtype: int | float
         """
         return self._timeout
 
+    def enqueue(self, func, *args, **kwargs):
+        """Enqueue a function call or a :doc:`job <job>`.
+
+        :param func: Function or a :doc:`job <job>` object. Must be
+            serializable and available to :doc:`workers <worker>`.
+        :type func: callable | :doc:`kq.Job <job>`
+        :param args: Positional arguments for the function. Ignored if **func**
+            is a :doc:`job <job>` object.
+        :param kwargs: Keyword arguments for the function. Ignored if **func**
+            is a :doc:`job <job>` object.
+        :return: Enqueued job.
+        :rtype: :doc:`kq.Job <job>`
+
+        **Example:**
+
+        .. testcode::
+
+            import requests
+
+            from kafka import KafkaProducer
+            from kq import  Job, Queue
+
+            # Set up a Kafka producer.
+            producer = KafkaProducer(bootstrap_servers='127.0.0.1:9092')
+
+            # Set up a queue.
+            queue = Queue(topic='topic', producer=producer)
+
+            # Enqueue a function call.
+            queue.enqueue(requests.get, 'https://www.google.com/')
+
+            # Enqueue a job object.
+            job = Job(func=requests.get, args=['https://www.google.com/'])
+            queue.enqueue(job)
+
+        .. note::
+
+            The following rules apply when enqueueing a :doc:`job <job>`:
+
+            * If ``Job.id`` is not set, a random one is generated.
+            * If ``Job.timestamp`` is set, it is replaced with current time.
+            * If ``Job.topic`` is set, it is replaced with current topic.
+            * If ``Job.timeout`` is set, its value overrides others.
+            * If ``Job.key`` is set, its value overrides others.
+            * If ``Job.partition`` is set, its value overrides others.
+
+        """
+        return self._default_enqueue_spec.enqueue(func, *args, **kwargs)
+
+    def using(self, timeout=None, key=None, partition=None):
+        """Set enqueue specifications such as timeout, key and partition.
+
+        :param timeout: Job timeout threshold in seconds. If not set, default
+            timeout (specified during queue initialization) is used instead.
+        :type timeout: int | float
+        :param key: Kafka message key. Jobs with the same keys are sent to the
+            same topic partition and executed sequentially. Applies only if the
+            **partition** parameter is not set, and the producer’s partitioner
+            configuration is left as default. For more details on producers,
+            refer to kafka-python's documentation_.
+        :type key: bytes
+        :param partition: Topic partition the message is sent to. If not set,
+            the producer's partitioner selects the partition. For more details
+            on producers, refer to kafka-python's documentation_.
+        :type partition: int
+        :return: Enqueue specification object which has an ``enqueue`` method
+            with the same signature as :func:`kq.queue.Queue.enqueue`.
+
+        **Example:**
+
+        .. testcode::
+
+            import requests
+
+            from kafka import KafkaProducer
+            from kq import Job, Queue
+
+            # Set up a Kafka producer.
+            producer = KafkaProducer(bootstrap_servers='127.0.0.1:9092')
+
+            # Set up a queue.
+            queue = Queue(topic='topic', producer=producer)
+
+            url = 'https://www.google.com/'
+
+            # Enqueue a function call in partition 0 with message key 'foo'.
+            queue.using(partition=0, key=b'foo').enqueue(requests.get, url)
+
+            # Enqueue a function call with a timeout of 10 seconds.
+            queue.using(timeout=10).enqueue(requests.get, url)
+
+            # Job values are preferred over values set with "using" method.
+            job = Job(func=requests.get, args=[url], timeout=5)
+            queue.using(timeout=10).enqueue(job)  # timeout is still 5
+
+        .. _documentation: http://kafka-python.rtfd.io/en/master/#kafkaproducer
+        """
+        return EnqueueSpec(
+            topic=self._topic,
+            producer=self._producer,
+            serializer=self._serializer,
+            logger=self._logger,
+            timeout=timeout or self._timeout,
+            key=key,
+            partition=partition
+        )
+
+
+class EnqueueSpec(object):
+
+    __slots__ = [
+        '_topic',
+        '_producer',
+        '_serializer',
+        '_logger',
+        '_timeout',
+        '_key',
+        '_part',
+        'delay'
+    ]
+
+    def __init__(self,
+                 topic,
+                 producer,
+                 serializer,
+                 logger,
+                 timeout,
+                 key,
+                 partition):
+        assert is_number(timeout), 'timeout must be an int or float'
+        assert is_none_or_bytes(key), 'key must be a bytes'
+        assert is_none_or_int(partition), 'partition must be an int'
+
+        self._topic = topic
+        self._producer = producer
+        self._serializer = serializer
+        self._logger = logger
+        self._timeout = timeout
+        self._key = key
+        self._part = partition
+
     def enqueue(self, obj, *args, **kwargs):
-        """Place the function call (or the job) in the Kafka topic.
+        """Enqueue a function call or :doc:`job` instance.
 
-        For example:
-
-        .. code-block:: python
-
-            import requests
-            from kq import Queue
-
-            q = Queue()
-
-            # You can queue the function call with its arguments
-            job = q.enqueue(requests.get, 'https://www.google.com')
-
-            # Or you can queue a kq.job.Job instance directly
-            q.enqueue(job)
-
-        :param obj: Function or the job object to enqueue. If a function is
-            given, the function *must* be pickle-able.
-        :type obj: callable | kq.job.Job
-        :param args: Arguments for the function. Ignored if a KQ job object
-            is given for the first argument instead.
-        :type args: list
-        :param kwargs: Keyword arguments for the function. Ignored if a KQ
-            job instance is given as the first argument instead.
-        :type kwargs: dict
-        :return: The job that was enqueued
-        :rtype: kq.job.Job
+        :param func: Function or :doc:`job <job>`. Must be serializable and
+            importable by :doc:`worker <worker>` processes.
+        :type func: callable | :doc:`kq.Job <job>`
+        :param args: Positional arguments for the function. Ignored if **func**
+            is a :doc:`job <job>` object.
+        :param kwargs: Keyword arguments for the function. Ignored if **func**
+            is a :doc:`job <job>` object.
+        :return: Enqueued job.
+        :rtype: :doc:`kq.Job <job>`
         """
-        if isinstance(obj, Job):
-            func = obj.func
-            args = obj.args
-            kwargs = obj.kwargs
-            key = obj.key
-        else:
-            func = obj
-            key = None
+        timestamp = int(time.time() * 1000)
 
-        if not callable(func):
-            raise ValueError('{} is not a callable'.format(func))
+        if isinstance(obj, Job):
+            job_id = uuid.uuid4().hex if obj.id is None else obj.id
+            func = obj.func
+            args = tuple() if obj.args is None else obj.args
+            kwargs = {} if obj.kwargs is None else obj.kwargs
+            timeout = self._timeout if obj.timeout is None else obj.timeout
+            key = self._key if obj.key is None else obj.key
+            partition = self._part if obj.partition is None else obj.partition
+
+            assert is_str(job_id), 'Job.id must be a str'
+            assert callable(func), 'Job.func must be a callable'
+            assert is_iter(args), 'Job.args must be a list or tuple'
+            assert is_dict(kwargs), 'Job.kwargs must be a dict'
+            assert is_number(timeout), 'Job.timeout must be an int or float'
+            assert is_none_or_bytes(key), 'Job.key must be a bytes'
+            assert is_none_or_int(partition), 'Job.partition must be an int'
+        else:
+            assert callable(obj), 'first argument must be a callable'
+            job_id = uuid.uuid4().hex
+            func = obj
+            args = args
+            kwargs = kwargs
+            timeout = self._timeout
+            key = self._key
+            partition = self._part
 
         job = Job(
-            id=str(uuid.uuid4()),
-            timestamp=int(time.time()),
+            id=job_id,
+            timestamp=timestamp,
             topic=self._topic,
             func=func,
             args=args,
             kwargs=kwargs,
-            timeout=self._timeout,
-            key=key
+            timeout=timeout,
+            key=key,
+            partition=partition
         )
-        self._producer.send(self._topic, dill.dumps(job), key=key)
-        self._logger.info('Enqueued: {}'.format(job))
-        return job
-
-    def enqueue_with_key(self, key, obj, *args, **kwargs):
-        """Place the function call (or the job) in the Kafka topic with key.
-
-        For example:
-
-        .. code-block:: python
-
-            import requests
-            from kq import Queue
-
-            q = Queue()
-
-            url = 'https://www.google.com'
-
-            # You can queue the function call with its arguments
-            job = q.enqueue_with_key('my_key', requests.get, url)
-
-            # Or you can queue a kq.job.Job instance directly
-            q.enqueue_with_key('my_key', job)
-
-        :param key: The key for the Kafka message. Jobs with the same key are
-            guaranteed to be placed in the same Kafka partition and processed
-            sequentially. If a job object is enqueued, its key is overwritten.
-        :type key: str
-        :param obj: Function or the job object to enqueue. If a function is
-            given, the function *must* be pickle-able.
-        :type obj: callable | kq.job.Job
-        :param args: Arguments for the function. Ignored if a KQ job object
-            is given for the first argument instead.
-        :type args: list
-        :param kwargs: Keyword arguments for the function. Ignored if a KQ
-            job instance is given as the first argument instead.
-        :type kwargs: dict
-        :return: The job that was enqueued
-        :rtype: kq.job.Job
-        """
-        if isinstance(obj, Job):
-            func = obj.func
-            args = obj.args
-            kwargs = obj.kwargs
-        else:
-            func = obj
-
-        if not callable(func):
-            raise ValueError('{} is not a callable'.format(func))
-
-        job = Job(
-            id=str(uuid.uuid4()),
-            timestamp=int(time.time()),
-            topic=self._topic,
-            func=func,
-            args=args,
-            kwargs=kwargs,
-            timeout=self._timeout,
-            key=key
+        self._logger.info('Enqueueing {} ...'.format(job))
+        self._producer.send(
+            self._topic,
+            value=self._serializer(job),
+            key=self._serializer(key) if key else None,
+            partition=partition,
+            timestamp_ms=timestamp
         )
-        self._producer.send(self._topic, dill.dumps(job), key=key)
-        self._logger.info('Enqueued: {}'.format(job))
         return job
-
-    def job(self, func):
-        """Decorator which add a **delay** method to a function.
-
-        When the **delay** method is called, the function is queued as a job.
-        For example:
-
-        .. code-block:: python
-
-            from kq import Queue
-            queue = Queue()
-
-            @queue.job
-            def calculate_sum(a, b, c):
-                return a + b + c
-
-            # Enqueue the function as a job
-            calculate_sum.delay(1, 2, 3)
-
-        :param func: The function to decorate.
-        :type func: callable
-        :return: The decorated function with new method **delay**
-        :rtype: callable
-        """
-        @functools.wraps(func)
-        def delay(*args, **kwargs):  # pragma: no cover
-            return self.enqueue(func, *args, **kwargs)
-        func.delay = delay
-        return func
-
-    def flush(self):
-        """Force-flush all buffered records to the broker."""
-        self._logger.info('Flushing {} ...'.format(self))
-        self._producer.flush()

@@ -1,225 +1,218 @@
-from __future__ import absolute_import, print_function, unicode_literals
-
 import time
+import uuid
 
-import dill
-import mock
 import pytest
+from kafka import KafkaProducer
 
 from kq import Job, Queue
 
-from .utils import (
-    success_func,
-    failure_func
-)
+
+def test_queue_properties(queue, hosts, topic):
+    assert hosts in repr(queue)
+    assert topic in repr(queue)
+    assert queue.producer.config['bootstrap_servers'] == hosts
+    assert isinstance(queue.hosts, str) and queue.hosts == hosts
+    assert isinstance(queue.topic, str) and queue.topic == topic
+    assert isinstance(queue.producer, KafkaProducer)
+    assert isinstance(queue.timeout, (int, float))
+    assert callable(queue.serializer) or queue.serializer is None
 
 
-@pytest.fixture(autouse=True)
-def producer(monkeypatch):
-    mock_producer_inst = mock.MagicMock()
-    mock_producer_cls = mock.MagicMock()
-    mock_producer_cls.return_value = mock_producer_inst
-    monkeypatch.setattr('kafka.KafkaProducer', mock_producer_cls)
-    return mock_producer_cls, mock_producer_inst
+# noinspection PyTypeChecker
+def test_queue_initialization_with_bad_args(producer):
+    with pytest.raises(AssertionError) as e:
+        Queue(topic=True, producer=producer)
+    assert str(e.value) == 'topic must be a str'
+
+    with pytest.raises(AssertionError) as e:
+        Queue(topic='topic', producer='bar')
+    assert str(e.value) == 'bad producer instance'
+
+    with pytest.raises(AssertionError) as e:
+        Queue(topic='topic', producer=producer, serializer='baz')
+    assert str(e.value) == 'serializer must be a callable'
+
+    with pytest.raises(AssertionError) as e:
+        Queue(topic='topic', producer=producer, timeout='bar')
+    assert str(e.value) == 'timeout must be an int or float'
+
+    with pytest.raises(AssertionError) as e:
+        Queue(topic='topic', producer=producer, timeout=-1)
+    assert str(e.value) == 'timeout must be 0 or greater'
+
+    with pytest.raises(AssertionError) as e:
+        Queue(topic='topic', producer=producer, logger=1)
+    assert str(e.value) == 'bad logger instance'
 
 
-@pytest.fixture(autouse=True)
-def logger(monkeypatch):
-    mock_logger_inst = mock.MagicMock()
-    mock_get_logger = mock.MagicMock()
-    mock_get_logger.return_value = mock_logger_inst
-    monkeypatch.setattr('logging.getLogger', mock_get_logger)
-    return mock_logger_inst
+def test_queue_enqueue_function(queue, func, topic, log):
+    job = queue.enqueue(func, 1, 2)
+    assert isinstance(job, Job)
+    assert job.id is not None
+    assert job.timestamp is not None
+    assert job.topic == topic
+    assert job.func == func
+    assert job.args == (1, 2)
+    assert job.kwargs == {}
+    assert job.timeout == 0
+    assert job.key is None
+    assert job.partition is None
+    assert log.last_line == '[INFO] Enqueueing {} ...'.format(job)
 
 
-def test_init(producer, logger):
-    producer_cls, producer_inst = producer
+def test_queue_enqueue_function_with_spec(func, queue, topic, log):
+    job = queue.using(key=b'foo', partition=0).enqueue(func, 3, 4)
+    assert isinstance(job, Job)
+    assert job.id is not None
+    assert job.timestamp is not None
+    assert job.topic == topic
+    assert job.func == func
+    assert job.args == (3, 4)
+    assert job.kwargs == {}
+    assert job.timeout == 0
+    assert job.key == b'foo'
+    assert job.partition == 0
+    assert log.last_line == '[INFO] Enqueueing {} ...'.format(job)
 
-    queue = Queue(
-        hosts='host:7000,host:8000',
-        topic='foo',
-        timeout=1000,
-        compression='gzip',
-        acks=0,
-        retries=5,
-        job_size=10000000,
-        cafile='/test/files/cafile',
-        certfile='/test/files/certfile',
-        keyfile='/test/files/keyfile',
-        crlfile='/test/files/crlfile'
+
+# noinspection PyTypeChecker
+def test_queue_enqueue_function_with_bad_args(func, queue):
+    with pytest.raises(AssertionError) as e:
+        queue.enqueue(1)
+    assert str(e.value) == 'first argument must be a callable'
+
+    with pytest.raises(AssertionError) as e:
+        queue.using(timeout='foo').enqueue(func)
+    assert str(e.value) == 'timeout must be an int or float'
+
+    with pytest.raises(AssertionError) as e:
+        queue.using(key='foo').enqueue(func)
+    assert str(e.value) == 'key must be a bytes'
+
+    with pytest.raises(AssertionError) as e:
+        queue.using(partition='foo').enqueue(func)
+    assert str(e.value) == 'partition must be an int'
+
+
+def test_queue_enqueue_job_fully_populated(func, queue, topic, log):
+    job_id = uuid.uuid4().hex
+    timestamp = int(time.time() * 1000)
+
+    job = Job(
+        id=job_id,
+        timestamp=timestamp,
+        topic='topic',
+        func=func,
+        args=[0],
+        kwargs={'b': 1},
+        timeout=10,
+        key=b'bar',
+        partition=0
     )
-    producer_cls.assert_called_with(
-        bootstrap_servers='host:7000,host:8000',
-        compression_type='gzip',
-        acks=0,
-        retries=5,
-        max_request_size=10000000,
-        buffer_memory=33554432,
-        ssl_cafile='/test/files/cafile',
-        ssl_certfile='/test/files/certfile',
-        ssl_keyfile='/test/files/keyfile',
-        ssl_crlfile='/test/files/crlfile',
-    )
-    assert repr(queue) == 'Queue(topic=foo)'
-    assert queue.hosts == ['host:7000', 'host:8000']
-    assert queue.timeout == 1000
-    assert queue.topic == 'foo'
-    assert queue.producer == producer_inst
-    assert not logger.info.called
+    job = queue.enqueue(job)
+    assert isinstance(job, Job)
+    assert job.id == job_id
+    assert job.timestamp == timestamp
+    assert job.topic == topic
+    assert job.func == func
+    assert job.args == [0]
+    assert job.kwargs == {'b': 1}
+    assert job.timeout == 10
+    assert job.key == b'bar'
+    assert job.partition == 0
+    assert log.last_line.startswith('[INFO] Enqueueing {} ...'.format(job))
 
 
-def test_enqueue_call(producer, logger):
-    producer_cls, producer_inst = producer
+def test_queue_enqueue_job_partially_populated(func, queue, topic, log):
+    job = Job(func=func, args=[1], kwargs={'b': 1})
 
-    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
-    job = queue.enqueue(success_func, 1, 2, c=[3, 4, 5])
-
+    job = queue.enqueue(job)
     assert isinstance(job, Job)
     assert isinstance(job.id, str)
     assert isinstance(job.timestamp, int)
-    assert job.topic == 'foo'
-    assert job.func == success_func
-    assert job.args == (1, 2)
-    assert job.kwargs == {'c': [3, 4, 5]}
-    assert job.timeout == 300
+    assert job.topic == topic
+    assert job.func == func
+    assert job.args == [1]
+    assert job.kwargs == {'b': 1}
+    assert job.timeout == 0
+    assert job.key is None
+    assert job.partition is None
+    assert log.last_line.startswith('[INFO] Enqueueing {} ...'.format(job))
 
-    producer_inst.send.assert_called_with('foo', dill.dumps(job), key=None)
-    logger.info.assert_called_once_with('Enqueued: {}'.format(job))
 
+def test_queue_enqueue_job_with_spec(func, queue, topic, log):
+    job_id = uuid.uuid4().hex
+    timestamp = int(time.time() * 1000)
 
-def test_enqueue_call_with_key(producer, logger):
-    producer_cls, producer_inst = producer
+    job = Job(
+        id=job_id,
+        timestamp=timestamp,
+        topic='topic',
+        func=func,
+        args=[0],
+        kwargs={'b': 1},
+        timeout=10,
+        key=b'bar',
+        partition=0
+    )
 
-    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
-    job = queue.enqueue_with_key('bar', success_func, 1, 2, c=[3, 4, 5])
-
+    # Job should override the spec.
+    job = queue.using(key=b'foo', timeout=5, partition=5).enqueue(job)
     assert isinstance(job, Job)
-    assert isinstance(job.id, str)
-    assert isinstance(job.timestamp, int)
-    assert job.topic == 'foo'
-    assert job.func == success_func
-    assert job.args == (1, 2)
-    assert job.kwargs == {'c': [3, 4, 5]}
-    assert job.timeout == 300
-    assert job.key == 'bar'
-
-    producer_inst.send.assert_called_with('foo', dill.dumps(job), key='bar')
-    logger.info.assert_called_once_with('Enqueued: {}'.format(job))
-
-
-def test_invalid_call(producer, logger):
-    producer_cls, producer_inst = producer
-
-    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
-
-    for bad_func in [None, 1, {1, 2}, [1, 2, 3]]:
-        with pytest.raises(ValueError) as e:
-            queue.enqueue(bad_func, 1, 2, a=3)
-        assert str(e.value) == '{} is not a callable'.format(bad_func)
-
-    assert not producer_inst.send.called
-    assert not logger.info.called
+    assert job.id == job_id
+    assert job.timestamp == timestamp
+    assert job.topic == topic
+    assert job.func == func
+    assert job.args == [0]
+    assert job.kwargs == {'b': 1}
+    assert job.timeout == 10
+    assert job.key == b'bar'
+    assert job.partition == 0
+    assert log.last_line.startswith('[INFO] Enqueueing {} ...'.format(job))
 
 
-def test_invalid_call_with_key(producer, logger):
-    producer_cls, producer_inst = producer
+def test_queue_enqueue_job_with_bad_args(func, queue, topic):
+    valid_job_kwargs = {
+        'id': uuid.uuid4().hex,
+        'timestamp': int(time.time() * 1000),
+        'topic': topic,
+        'func': func,
+        'args': [0],
+        'kwargs': {'b': 1},
+        'timeout': 10,
+        'key': b'foo',
+        'partition': 0
+    }
 
-    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
+    def build_job(**kwargs):
+        job_kwargs = valid_job_kwargs.copy()
+        job_kwargs.update(kwargs)
+        return Job(**job_kwargs)
 
-    for bad_func in [None, 1, {1, 2}, [1, 2, 3]]:
-        with pytest.raises(ValueError) as e:
-            queue.enqueue_with_key('foo', bad_func, 1, 2, a=3)
-        assert str(e.value) == '{} is not a callable'.format(bad_func)
+    with pytest.raises(AssertionError) as e:
+        queue.enqueue(build_job(id=1))
+    assert str(e.value) == 'Job.id must be a str'
 
-    assert not producer_inst.send.called
-    assert not logger.info.called
+    with pytest.raises(AssertionError) as e:
+        queue.enqueue(build_job(func=1))
+    assert str(e.value) == 'Job.func must be a callable'
 
+    with pytest.raises(AssertionError) as e:
+        queue.enqueue(build_job(args=1))
+    assert str(e.value) == 'Job.args must be a list or tuple'
 
-def test_enqueue_job(producer, logger):
-    producer_cls, producer_inst = producer
+    with pytest.raises(AssertionError) as e:
+        queue.enqueue(build_job(kwargs=1))
+    assert str(e.value) == 'Job.kwargs must be a dict'
 
-    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
+    with pytest.raises(AssertionError) as e:
+        queue.enqueue(build_job(timeout='foo'))
+    assert str(e.value) == 'Job.timeout must be an int or float'
 
-    old_job = Job(
-        id='2938401',
-        timestamp=int(time.time()),
-        topic='bar',
-        func=failure_func,
-        args=[1, 2],
-        kwargs={'a': 3},
-        timeout=100,
-    )
-    new_job = queue.enqueue(old_job)
+    with pytest.raises(AssertionError) as e:
+        queue.enqueue(build_job(key='foo'))
+    assert str(e.value) == 'Job.key must be a bytes'
 
-    assert isinstance(new_job, Job)
-    assert isinstance(new_job.id, str)
-    assert isinstance(new_job.timestamp, int)
-    assert old_job.id != new_job.id
-    assert old_job.timestamp <= new_job.timestamp
-    assert new_job.topic == 'foo'
-    assert new_job.func == failure_func
-    assert new_job.args == [1, 2]
-    assert new_job.kwargs == {'a': 3}
-    assert new_job.timeout == 300
-    assert new_job.key is None
-
-    producer_inst.send.assert_called_with(
-        'foo', dill.dumps(new_job), key=None
-    )
-    logger.info.assert_called_once_with('Enqueued: {}'.format(new_job))
-
-
-def test_enqueue_job_with_key(producer, logger):
-    producer_cls, producer_inst = producer
-
-    queue = Queue(hosts='host:7000', topic='foo', timeout=300)
-
-    old_job = Job(
-        id='2938401',
-        timestamp=int(time.time()),
-        topic='bar',
-        func=failure_func,
-        args=[1, 2],
-        kwargs={'a': 3},
-        timeout=100,
-        key='bar',
-    )
-    new_job = queue.enqueue_with_key('baz', old_job)
-
-    assert isinstance(new_job, Job)
-    assert isinstance(new_job.id, str)
-    assert isinstance(new_job.timestamp, int)
-    assert old_job.id != new_job.id
-    assert old_job.timestamp <= new_job.timestamp
-    assert new_job.topic == 'foo'
-    assert new_job.func == failure_func
-    assert new_job.args == [1, 2]
-    assert new_job.kwargs == {'a': 3}
-    assert new_job.timeout == 300
-    assert new_job.key == 'baz'
-
-    producer_inst.send.assert_called_with(
-        'foo', dill.dumps(new_job), key='baz'
-    )
-    logger.info.assert_called_once_with('Enqueued: {}'.format(new_job))
-
-
-def test_job_decorator():
-    queue = Queue(hosts='host:7000', topic='foo')
-
-    @queue.job
-    def test_function(a, b, c=None):
-        return a, b, c
-    assert hasattr(test_function, 'delay')
-
-    with pytest.raises(Exception) as e:
-        test_function.delay(1, 2, 3, 4)
-    assert "Can't pickle" in str(e.value)
-
-
-def test_flush(producer):
-    producer_cls, producer_inst = producer
-
-    queue = Queue(hosts='host:7000', topic='foo')
-    queue.flush()
-    producer_inst.flush.assert_called_once()
+    with pytest.raises(AssertionError) as e:
+        queue.enqueue(build_job(partition='foo'))
+    assert str(e.value) == 'Job.partition must be an int'

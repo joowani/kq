@@ -5,54 +5,80 @@ First, ensure that your Kafka instance is up and running:
 
 .. code-block:: bash
 
-    # This command is just an example
     ~$ ./kafka-server-start.sh -daemon server.properties
 
+Define your KQ worker module:
 
-Let's say you want to run the following function asynchronously:
+.. testsetup::
+
+    from unittest import mock
+    mock.patch('math.inf', 0).start()
 
 .. code-block:: python
 
-    import time
+    # my_worker.py
 
-    def my_func(foo, bar, baz=None):
-        """This is a blocking function."""
-        time.sleep(10)
-        return foo, bar, baz
+    import logging
 
+    from kafka import KafkaConsumer
+    from kq import Worker
 
-Start a KQ worker:
+    # Set up logging.
+    formatter = logging.Formatter('[%(levelname)s] %(message)s')
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger = logging.getLogger('kq.worker')
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(stream_handler)
+
+    # Set up a Kafka consumer.
+    consumer = KafkaConsumer(
+        bootstrap_servers='127.0.0.1:9092',
+        group_id='group',
+        auto_offset_reset='latest'
+    )
+
+    # Set up a worker.
+    worker = Worker(topic='topic', consumer=consumer)
+    worker.start()
+
+Start the worker:
 
 .. code-block:: bash
 
-    ~$ kq worker --verbose
-    [INFO] Starting Worker(topic=default) ...
+    ~$ python my_worker.py
+    [INFO] Starting Worker(hosts=127.0.0.1:9092 topic=topic, group=group) ...
 
+Enqueue a function call:
 
-Enqueue the function call as a job:
+.. testcode::
 
-.. code-block:: python
+    import requests
 
-    # Import the blocking function
-    from my_module import my_func
-
-    # Initialize a queue
+    from kafka import KafkaProducer
     from kq import Queue
-    q = Queue()
 
-    # Enqueue the function call
-    q.enqueue(my_func, 1, 2, baz=3)
+    # Set up a Kafka producer.
+    producer = KafkaProducer(bootstrap_servers='127.0.0.1:9092')
 
+    # Set up a queue.
+    queue = Queue(topic='topic', producer=producer)
+
+    # Enqueue a function call.
+    job = queue.enqueue(requests.get, 'https://www.google.com')
 
 Sit back and watch the worker process it in the background:
 
 .. code-block:: bash
 
-    ~$ kq worker --verbose
-    [INFO] Starting Worker(topic=default) ...
-    [INFO] Processing Record(topic=default, partition=5, offset=3) ...
-    [INFO] Running Job 1b92xle0: my_module.my_func(1, 2, baz=3) ...
-    [INFO] Job 1b92xle0 returned: (1, 2, 3)
+    ~$ python my_worker.py
+    [INFO] Starting Worker(hosts=127.0.0.1:9092, topic=topic, group=group) ...
+    [INFO] Processing Message(topic=topic, partition=0, offset=0) ...
+    [INFO] Executing job c7bf2359: requests.api.get('https://www.google.com')
+    [INFO] Job c7bf2359 returned: <Response [200]>
 
+You can also specify the job timeout, message key and partition:
 
-And that's essentially all there is to KQ!
+.. code-block:: python
+
+    job = queue.using(timeout=5, key=b'foo', partition=0).enqueue(requests.get, 'https://www.google.com')

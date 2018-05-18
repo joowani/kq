@@ -4,27 +4,25 @@ version = {}
 with open('./kq/version.py') as fp:
     exec(fp.read(), version)
 
+with open('./README.rst') as fp:
+    description = fp.read()
+
 setup(
     name='kq',
     description='Kafka Job Queue for Python',
-    version=version['VERSION'],
+    version=version['__version__'],
+    long_description=description,
     author='Joohwan Oh',
     author_email='joohwan.oh@outlook.com',
     url='https://github.com/joowani/kq',
-    packages=find_packages(),
+    packages=find_packages(exclude=['tests']),
     include_package_data=True,
     license='MIT',
-    entry_points={
-        'console_scripts': [
-            'kq = kq.cli:entry_point',
-        ],
-    },
     install_requires=[
         'dill>=0.2.5',
-        'docopt>=0.6.2',
-        'kafka-python>=1.3.1'
+        'kafka-python>=1.3.1',
     ],
-    tests_require=['pytest'],
+    tests_require=['pytest', 'mock', 'flake8', 'tinydb'],
     classifiers=[
         'Intended Audience :: Developers',
         'Intended Audience :: End Users/Desktop',
@@ -36,7 +34,6 @@ setup(
         'Operating System :: MacOS',
         'Operating System :: Unix',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 3',
         'Topic :: Internet',
         'Topic :: Scientific/Engineering',

@@ -1,17 +1,19 @@
-language: python
 sudo: false
+language: python
 python:
-    - 2.7
-    - 3.4
     - 3.5
     - 3.6
+services:
+    - docker
+before_install:
+    - docker run --name kafka -d -p 2181:2181 -p 9092:9092 --env ADVERTISED_HOST=127.0.0.1 --env ADVERTISED_PORT=9092 spotify/kafka
 install:
-    - pip install coverage
-    - pip install pytest
-    - pip install pytest-cov
-    - pip install python-coveralls
-    - python setup.py install
+    - pip install flake8 mock pytest pytest-cov python-coveralls sphinx sphinx_rtd_theme
+    - pip install .
 script:
-    - py.test --cov=kq
+    - python -m flake8
+    - python -m sphinx -b doctest docs docs/_build
+    - python -m sphinx -b html -W docs docs/_build
+    - py.test -s -v --cov=kq
 after_success:
     - coveralls

@@ -1,20 +1,22 @@
-from __future__ import absolute_import, print_function, unicode_literals
+__all__ = ['Job']
 
 from collections import namedtuple
 
-
-# Namedtuple which encapsulates a KQ job
+# Namedtuple which encapsulates a KQ job.
 Job = namedtuple(
     typename='Job',
-    field_names=[
-        'id',         # UUID of the job
-        'timestamp',  # Unix timestamp indicating when the job was queued
-        'topic',      # Name of the Kafka topic the job was enqueued in
-        'func',       # Job function/callable
-        'args',       # Job function arguments
-        'kwargs',     # Job function keyword arguments
-        'timeout',    # Job timeout threshold in seconds
-        'key'         # Jobs w/ the same keys end up in the same partition
-    ]
+    field_names=(
+        'id',         # Job ID (str)
+        'timestamp',  # Unix timestamp indicating when job was enqueued (int)
+        'topic',      # Name of the Kafka topic (str)
+        'func',       # Function to execute (callable)
+        'args',       # Positional arguments (list)
+        'kwargs',     # Keyword arguments (dict)
+        'timeout',    # Job timeout threshold in seconds (int | float)
+        'key',        # Kafka message key if any (str | None)
+        'partition'   # Kafka topic partition if any (str | None)
+    )
 )
-Job.__new__.__defaults__ = (None,)
+
+# noinspection PyUnresolvedReferences,PyProtectedMember
+Job.__new__.__defaults__ = (None,) * len(Job._fields)
