@@ -49,28 +49,26 @@ If there is a good reason to ignore a warning, see here_ on how to exclude it.
 Testing
 =======
 
-To test your changes, run the integration test suite that comes with **kq**. It
-uses pytest_ and requires an actual Kafka instance.
+To test your changes, you can run the integration test suite that comes with
+**kq**. It uses pytest_ and requires an actual Kafka instance.
 
-To run the integration test suite:
+To run the test suite (use your own Kafka broker host and port):
 
 .. code-block:: bash
 
     ~$ pip install pytest
     ~$ git clone https://github.com/joowani/kq.git
     ~$ cd kq
-    ~$ py.test -v -s --host=127.0.0.1 --port=9092  # Enter your Kafka host and port
+    ~$ py.test -v -s --host=127.0.0.1 --port=9092
 
-To run the unit tests with coverage report:
+To run the test suite with coverage report:
 
 .. code-block:: bash
 
     ~$ pip install coverage pytest pytest-cov
     ~$ git clone https://github.com/joowani/kq.git
     ~$ cd kq
-    ~$ py.test -v -s --host=127.0.0.1 --port=9092 --cov=kq --cov-report=html
-
-    # Open the generated file htmlcov/index.html in a browser
+    ~$ py.test -v -s --host=127.0.0.1 --port=9092 --cov=kq
 
 As the test suite creates real topics and messages, it should only be run in
 development environments.
@@ -86,9 +84,7 @@ Sphinx_. To build an HTML version on your local machine:
     ~$ pip install sphinx sphinx_rtd_theme
     ~$ git clone https://github.com/joowani/kq.git
     ~$ cd kq/docs
-    ~$ sphinx-build . build
-
-    # Open the generated file build/index.html in a browser
+    ~$ sphinx-build . build  # Open build/index.html in a browser
 
 As always, thank you for your contribution!
 

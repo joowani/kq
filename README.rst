@@ -103,7 +103,7 @@ Define your KQ worker module:
     worker = Worker(topic='topic', consumer=consumer)
     worker.start()
 
-Start the worker:
+Start your worker:
 
 .. code-block:: bash
 
@@ -144,7 +144,7 @@ Sit back and watch the worker process it in the background:
 
     job = queue.using(timeout=5, key=b'foo', partition=0).enqueue(requests.get, 'https://www.google.com')
 
-Check out the full documentation_ for more information.
+Check out the documentation_ for more information.
 
 Contributing
 ============
