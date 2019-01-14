@@ -29,7 +29,7 @@ initialization.
 .. testcode::
 
     from kafka import KafkaConsumer
-    from kq import Worker
+    from kq import Worker, Job
 
 
     def callback(status, message, job, result, exception, stacktrace):
