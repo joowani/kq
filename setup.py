@@ -16,7 +16,7 @@ setup(
     install_requires=[
         'dill>=0.2.5',
         'docopt>=0.6.2',
-        'kafka-python==1.3.3'
+        'kafka-python==1.3.5'
     ],
     entry_points={
         'console_scripts': [
