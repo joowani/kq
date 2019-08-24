@@ -13,7 +13,7 @@ KQ: Kafka-based Job Queue for Python
     :target: https://badge.fury.io/py/kq
     :alt: Package Version
 
-.. image:: https://img.shields.io/badge/python-3.5%2C%203.6-blue.svg
+.. image:: https://img.shields.io/badge/python-3.5%2C%203.6%2C%203.7-blue.svg
     :target: https://github.com/joowani/kq
     :alt: Python Versions
 
@@ -38,7 +38,6 @@ the hood.
 Announcements
 =============
 
-* KQ version `2.0.0`_ is now out!
 * Please see the releases_ page for latest updates.
 
 Requirements
