@@ -78,7 +78,7 @@ if __name__ == '__main__':
     consumer = KafkaConsumer(
         bootstrap_servers='127.0.0.1:9092',
         group_id='group',
-        enable_auto_commit=False,
+        enable_auto_commit=True,
         auto_offset_reset='latest'
     )
     worker = Worker(

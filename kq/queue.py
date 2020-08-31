@@ -272,7 +272,7 @@ class EnqueueSpec(object):
         '_logger',
         '_timeout',
         '_key',
-        '_part',
+        '_partition',
         'delay'
     ]
 
@@ -294,7 +294,7 @@ class EnqueueSpec(object):
         self._logger = logger
         self._timeout = timeout
         self._key = key
-        self._part = partition
+        self._partition = partition
 
     def enqueue(self, obj, *args, **kwargs):
         """Enqueue a function call or :doc:`job` instance.
@@ -318,7 +318,7 @@ class EnqueueSpec(object):
             kwargs = {} if obj.kwargs is None else obj.kwargs
             timeout = self._timeout if obj.timeout is None else obj.timeout
             key = self._key if obj.key is None else obj.key
-            partition = self._part if obj.partition is None else obj.partition
+            part = self._partition if obj.partition is None else obj.partition
 
             assert is_str(job_id), 'Job.id must be a str'
             assert callable(func), 'Job.func must be a callable'
@@ -326,7 +326,7 @@ class EnqueueSpec(object):
             assert is_dict(kwargs), 'Job.kwargs must be a dict'
             assert is_number(timeout), 'Job.timeout must be an int or float'
             assert is_none_or_bytes(key), 'Job.key must be a bytes'
-            assert is_none_or_int(partition), 'Job.partition must be an int'
+            assert is_none_or_int(part), 'Job.partition must be an int'
         else:
             assert callable(obj), 'first argument must be a callable'
             job_id = uuid.uuid4().hex
@@ -335,7 +335,7 @@ class EnqueueSpec(object):
             kwargs = kwargs
             timeout = self._timeout
             key = self._key
-            partition = self._part
+            part = self._partition
 
         job = Job(
             id=job_id,
@@ -346,14 +346,15 @@ class EnqueueSpec(object):
             kwargs=kwargs,
             timeout=timeout,
             key=key,
-            partition=partition
+            partition=part
         )
         self._logger.info('Enqueueing {} ...'.format(job))
         self._producer.send(
             self._topic,
             value=self._serializer(job),
             key=self._serializer(key) if key else None,
-            partition=partition,
+            partition=part,
             timestamp_ms=timestamp
         )
+        self._producer.flush()
         return job

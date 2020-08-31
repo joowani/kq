@@ -118,7 +118,7 @@ class LogAccessor(object):
         time.sleep(0.5)
         with open(log_file, 'r') as fp:
             lines = fp.read().splitlines()
-        return [l for l in lines if l.startswith('[')]
+        return [line for line in lines if line.startswith('[')]
 
     @property
     def last_line(self):

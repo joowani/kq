@@ -19,10 +19,10 @@ setup(
     include_package_data=True,
     license='MIT',
     install_requires=[
-        'dill>=0.2.5',
-        'kafka-python>=1.3.1',
+        'dill>=0.3.2',
+        'kafka-python>=2.0.0',
     ],
-    tests_require=['pytest', 'mock', 'flake8', 'tinydb'],
+    tests_require=['pytest', 'mock', 'flake8'],
     classifiers=[
         'Intended Audience :: Developers',
         'Intended Audience :: End Users/Desktop',
