@@ -1,9 +1,8 @@
 Callback
 --------
 
-KQ allows you to assign a callback function to workers. The callback function
-is invoked every time a message is processed. It must take the following
-positional arguments:
+KQ lets you set a callback function to workers. The callback function is invoked each
+time a message is processed. It must accept the following positional arguments:
 
 * **status** (str): Job status. Possible values are:
 

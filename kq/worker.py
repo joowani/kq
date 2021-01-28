@@ -1,24 +1,19 @@
-__all__ = ['Worker']
-
 import _thread
 import logging
 import math
 import threading
 import traceback
+from typing import Any, Callable, Optional
 
 import dill
 from kafka import KafkaConsumer
 
+from kq import Job
 from kq.message import Message
-from kq.utils import (
-    get_call_repr,
-    is_str,
-    is_none_or_func,
-    is_none_or_logger
-)
+from kq.utils import get_call_repr, is_none_or_func, is_none_or_logger, is_str
 
 
-class Worker(object):
+class Worker:
     """Fetches :doc:`jobs <job>` from Kafka topics and processes them.
 
     :param topic: Name of the Kafka topic.
@@ -64,27 +59,28 @@ class Worker(object):
         http://kafka-python.rtfd.io/en/master/apidoc/KafkaConsumer.html
     """
 
-    def __init__(self,
-                 topic,
-                 consumer,
-                 callback=None,
-                 deserializer=None,
-                 logger=None):
-
-        assert is_str(topic), 'topic must be a str'
-        assert isinstance(consumer, KafkaConsumer), 'bad consumer instance'
-        assert consumer.config['group_id'], 'consumer must have group_id'
-        assert is_none_or_func(callback), 'callback must be a callable'
-        assert is_none_or_func(deserializer), 'deserializer must be a callable'
-        assert is_none_or_logger(logger), 'bad logger instance'
+    def __init__(
+        self,
+        topic: str,
+        consumer: KafkaConsumer,
+        callback: Optional[Callable] = None,
+        deserializer: Optional[Callable] = None,
+        logger: Optional[logging.Logger] = None,
+    ):
+        assert is_str(topic), "topic must be a str"
+        assert isinstance(consumer, KafkaConsumer), "bad consumer instance"
+        assert consumer.config["group_id"], "consumer must have group_id"
+        assert is_none_or_func(callback), "callback must be a callable"
+        assert is_none_or_func(deserializer), "deserializer must be a callable"
+        assert is_none_or_logger(logger), "bad logger instance"
 
         self._topic = topic
-        self._hosts = consumer.config['bootstrap_servers']
-        self._group = consumer.config['group_id']
+        self._hosts = consumer.config["bootstrap_servers"]
+        self._group = consumer.config["group_id"]
         self._consumer = consumer
         self._callback = callback
         self._deserializer = deserializer or dill.loads
-        self._logger = logger or logging.getLogger('kq.worker')
+        self._logger = logger or logging.getLogger("kq.worker")
 
     def __repr__(self):
         """Return the string representation of the worker.
@@ -92,7 +88,7 @@ class Worker(object):
         :return: String representation of the worker.
         :rtype: str
         """
-        return 'Worker(hosts={}, topic={}, group={})'.format(
+        return "Worker(hosts={}, topic={}, group={})".format(
             self._hosts, self._topic, self._group
         )
 
@@ -103,7 +99,15 @@ class Worker(object):
         except Exception:
             pass
 
-    def _execute_callback(self, status, message, job, res, err, stacktrace):
+    def _execute_callback(
+        self,
+        status: str,
+        message: Message,
+        job: Optional[Job],
+        res: Any,
+        err: Optional[Exception],
+        stacktrace: Optional[str],
+    ):
         """Execute the callback.
 
         :param status: Job status. Possible values are "invalid" (job could not
@@ -124,11 +128,10 @@ class Worker(object):
         """
         if self._callback is not None:
             try:
-                self._logger.info('Executing callback ...')
+                self._logger.info("Executing callback ...")
                 self._callback(status, message, job, res, err, stacktrace)
             except Exception as e:
-                self._logger.exception(
-                    'Callback raised an exception: {}'.format(e))
+                self._logger.exception("Callback raised an exception: {}".format(e))
 
     def _process_message(self, msg):
         """De-serialize the message and execute the job.
@@ -137,17 +140,19 @@ class Worker(object):
         :type msg: :doc:`kq.Message <message>`
         """
         self._logger.info(
-            'Processing Message(topic={}, partition={}, offset={}) ...'
-            .format(msg.topic, msg.partition, msg.offset))
+            "Processing Message(topic={}, partition={}, offset={}) ...".format(
+                msg.topic, msg.partition, msg.offset
+            )
+        )
         try:
             job = self._deserializer(msg.value)
             job_repr = get_call_repr(job.func, *job.args, **job.kwargs)
 
         except Exception as err:
-            self._logger.exception('Job was invalid: {}'.format(err))
-            self._execute_callback('invalid', msg, None, None, None, None)
+            self._logger.exception("Job was invalid: {}".format(err))
+            self._execute_callback("invalid", msg, None, None, None, None)
         else:
-            self._logger.info('Executing job {}: {}'.format(job.id, job_repr))
+            self._logger.info("Executing job {}: {}".format(job.id, job_repr))
 
             if job.timeout:
                 timer = threading.Timer(job.timeout, _thread.interrupt_main)
@@ -157,17 +162,15 @@ class Worker(object):
             try:
                 res = job.func(*job.args, **job.kwargs)
             except KeyboardInterrupt:
-                self._logger.error(
-                    'Job {} timed out or was interrupted'.format(job.id))
-                self._execute_callback('timeout', msg, job, None, None, None)
+                self._logger.error("Job {} timed out or was interrupted".format(job.id))
+                self._execute_callback("timeout", msg, job, None, None, None)
             except Exception as err:
-                self._logger.exception(
-                    'Job {} raised an exception:'.format(job.id))
+                self._logger.exception("Job {} raised an exception:".format(job.id))
                 tb = traceback.format_exc()
-                self._execute_callback('failure', msg, job, None, err, tb)
+                self._execute_callback("failure", msg, job, None, err, tb)
             else:
-                self._logger.info('Job {} returned: {}'.format(job.id, res))
-                self._execute_callback('success', msg, job, res, None, None)
+                self._logger.info("Job {} returned: {}".format(job.id, res))
+                self._execute_callback("success", msg, job, res, None, None)
             finally:
                 if timer is not None:
                     timer.cancel()
@@ -238,7 +241,7 @@ class Worker(object):
         :return: Total number of messages processed.
         :rtype: int
         """
-        self._logger.info('Starting {} ...'.format(self))
+        self._logger.info("Starting {} ...".format(self))
 
         self._consumer.unsubscribe()
         self._consumer.subscribe([self.topic])
@@ -252,7 +255,7 @@ class Worker(object):
                 partition=record.partition,
                 offset=record.offset,
                 key=record.key,
-                value=record.value
+                value=record.value,
             )
             self._process_message(message)
 

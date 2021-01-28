@@ -1,5 +1,4 @@
 import pytest
-
 from kafka import KafkaConsumer
 
 from kq import Worker
@@ -10,8 +9,8 @@ def test_worker_properties(worker, hosts, topic, group):
     assert topic in repr(worker)
     assert group in repr(worker)
 
-    assert worker.consumer.config['bootstrap_servers'] == hosts
-    assert worker.consumer.config['group_id'] == group
+    assert worker.consumer.config["bootstrap_servers"] == hosts
+    assert worker.consumer.config["group_id"] == group
 
     assert isinstance(worker.hosts, str) and worker.hosts == hosts
     assert isinstance(worker.topic, str) and worker.topic == topic
@@ -25,28 +24,28 @@ def test_worker_properties(worker, hosts, topic, group):
 def test_worker_initialization_with_bad_args(hosts, consumer):
     with pytest.raises(AssertionError) as e:
         Worker(topic=True, consumer=consumer)
-    assert str(e.value) == 'topic must be a str'
+    assert str(e.value) == "topic must be a str"
 
     with pytest.raises(AssertionError) as e:
-        Worker(topic='topic', consumer='bar')
-    assert str(e.value) == 'bad consumer instance'
+        Worker(topic="topic", consumer="bar")
+    assert str(e.value) == "bad consumer instance"
 
     with pytest.raises(AssertionError) as e:
         bad_consumer = KafkaConsumer(bootstrap_servers=hosts)
-        Worker(topic='topic', consumer=bad_consumer)
-    assert str(e.value) == 'consumer must have group_id'
+        Worker(topic="topic", consumer=bad_consumer)
+    assert str(e.value) == "consumer must have group_id"
 
     with pytest.raises(AssertionError) as e:
-        Worker(topic='topic', consumer=consumer, callback=1)
-    assert str(e.value) == 'callback must be a callable'
+        Worker(topic="topic", consumer=consumer, callback=1)
+    assert str(e.value) == "callback must be a callable"
 
     with pytest.raises(AssertionError) as e:
-        Worker(topic='topic', consumer=consumer, deserializer=1)
-    assert str(e.value) == 'deserializer must be a callable'
+        Worker(topic="topic", consumer=consumer, deserializer=1)
+    assert str(e.value) == "deserializer must be a callable"
 
     with pytest.raises(AssertionError) as e:
-        Worker(topic='topic', consumer=consumer, logger=1)
-    assert str(e.value) == 'bad logger instance'
+        Worker(topic="topic", consumer=consumer, logger=1)
+    assert str(e.value) == "bad logger instance"
 
 
 def test_worker_run_success_function(queue, worker, success_func, log):
@@ -54,12 +53,12 @@ def test_worker_run_success_function(queue, worker, success_func, log):
     worker.start(max_messages=1)
 
     out = log.last_lines(7)
-    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
-    assert next(out).startswith('[INFO] Starting {}'.format(worker))
-    assert next(out).startswith('[INFO] Processing Message')
-    assert next(out).startswith('[INFO] Executing job {}'.format(job.id))
-    assert next(out).startswith('[INFO] Job {} returned: 2'.format(job.id))
-    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith("[INFO] Enqueueing {}".format(job))
+    assert next(out).startswith("[INFO] Starting {}".format(worker))
+    assert next(out).startswith("[INFO] Processing Message")
+    assert next(out).startswith("[INFO] Executing job {}".format(job.id))
+    assert next(out).startswith("[INFO] Job {} returned: 2".format(job.id))
+    assert next(out).startswith("[INFO] Executing callback")
     assert next(out).startswith('[INFO] Callback got job status "success"')
 
 
@@ -68,12 +67,12 @@ def test_worker_run_failure_function(queue, worker, failure_func, log):
     worker.start(max_messages=1)
 
     out = log.last_lines(7)
-    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
-    assert next(out).startswith('[INFO] Starting {}'.format(worker))
-    assert next(out).startswith('[INFO] Processing Message')
-    assert next(out).startswith('[INFO] Executing job {}'.format(job.id))
-    assert next(out).startswith('[ERROR] Job {} raised'.format(job.id))
-    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith("[INFO] Enqueueing {}".format(job))
+    assert next(out).startswith("[INFO] Starting {}".format(worker))
+    assert next(out).startswith("[INFO] Processing Message")
+    assert next(out).startswith("[INFO] Executing job {}".format(job.id))
+    assert next(out).startswith("[ERROR] Job {} raised".format(job.id))
+    assert next(out).startswith("[INFO] Executing callback")
     assert next(out).startswith('[INFO] Callback got job status "failure"')
 
 
@@ -82,12 +81,12 @@ def test_worker_run_timeout_function(queue, worker, timeout_func, log):
     worker.start(max_messages=1)
 
     out = log.last_lines(7)
-    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
-    assert next(out).startswith('[INFO] Starting {}'.format(worker))
-    assert next(out).startswith('[INFO] Processing Message')
-    assert next(out).startswith('[INFO] Executing job {}'.format(job.id))
-    assert next(out).startswith('[ERROR] Job {} timed out'.format(job.id))
-    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith("[INFO] Enqueueing {}".format(job))
+    assert next(out).startswith("[INFO] Starting {}".format(worker))
+    assert next(out).startswith("[INFO] Processing Message")
+    assert next(out).startswith("[INFO] Executing job {}".format(job.id))
+    assert next(out).startswith("[ERROR] Job {} timed out".format(job.id))
+    assert next(out).startswith("[INFO] Executing callback")
     assert next(out).startswith('[INFO] Callback got job status "timeout"')
 
 
@@ -97,13 +96,13 @@ def test_worker_run_bad_callback(queue, worker, success_func, callback, log):
     worker.start(max_messages=1)
 
     out = log.last_lines(7)
-    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
-    assert next(out).startswith('[INFO] Starting {}'.format(worker))
-    assert next(out).startswith('[INFO] Processing Message')
-    assert next(out).startswith('[INFO] Executing job {}'.format(job.id))
-    assert next(out).startswith('[INFO] Job {} returned: 20'.format(job.id))
-    assert next(out).startswith('[INFO] Executing callback')
-    assert next(out).startswith('[ERROR] Callback raised an exception')
+    assert next(out).startswith("[INFO] Enqueueing {}".format(job))
+    assert next(out).startswith("[INFO] Starting {}".format(worker))
+    assert next(out).startswith("[INFO] Processing Message")
+    assert next(out).startswith("[INFO] Executing job {}".format(job.id))
+    assert next(out).startswith("[INFO] Job {} returned: 20".format(job.id))
+    assert next(out).startswith("[INFO] Executing callback")
+    assert next(out).startswith("[ERROR] Callback raised an exception")
 
 
 def test_worker_run_bad_job(queue, worker, success_func, deserializer, log):
@@ -112,9 +111,9 @@ def test_worker_run_bad_job(queue, worker, success_func, deserializer, log):
     worker.start(max_messages=1)
 
     out = log.last_lines(6)
-    assert next(out).startswith('[INFO] Enqueueing {}'.format(job))
-    assert next(out).startswith('[INFO] Starting {}'.format(worker))
-    assert next(out).startswith('[INFO] Processing Message')
-    assert next(out).startswith('[ERROR] Job was invalid')
-    assert next(out).startswith('[INFO] Executing callback')
+    assert next(out).startswith("[INFO] Enqueueing {}".format(job))
+    assert next(out).startswith("[INFO] Starting {}".format(worker))
+    assert next(out).startswith("[INFO] Processing Message")
+    assert next(out).startswith("[ERROR] Job was invalid")
+    assert next(out).startswith("[INFO] Executing callback")
     assert next(out).startswith('[INFO] Callback got job status "invalid"')

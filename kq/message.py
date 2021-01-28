@@ -1,15 +1,20 @@
-__all__ = ['Message']
+from dataclasses import dataclass
+from typing import Optional
 
-from collections import namedtuple
 
-# Namedtuple which encapsulates a Kafka message.
-Message = namedtuple(
-    typename='Message',
-    field_names=(
-        'topic',      # Name of the Kafka topic (str)
-        'partition',  # Topic partition (int)
-        'offset',     # Offset (int)
-        'key',        # Message key (bytes | None)
-        'value'       # Message value (bytes)
-    )
-)
+@dataclass(frozen=True)
+class Message:
+    # Name of the Kafka topic.
+    topic: str
+
+    # Kafka topic partition.
+    partition: int
+
+    # Partition offset.
+    offset: int
+
+    # Kafka message key.
+    key: Optional[bytes]
+
+    # Kafka message payload.
+    value: bytes

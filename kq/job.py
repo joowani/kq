@@ -1,22 +1,35 @@
-__all__ = ['Job']
+from dataclasses import dataclass
+from typing import Callable, Dict, Optional, Sequence, Union
 
-from collections import namedtuple
 
-# Namedtuple which encapsulates a KQ job.
-Job = namedtuple(
-    typename='Job',
-    field_names=(
-        'id',         # Job ID (str)
-        'timestamp',  # Unix timestamp indicating when job was enqueued (int)
-        'topic',      # Name of the Kafka topic (str)
-        'func',       # Function to execute (callable)
-        'args',       # Positional arguments (list)
-        'kwargs',     # Keyword arguments (dict)
-        'timeout',    # Job timeout threshold in seconds (int | float)
-        'key',        # Kafka message key if any (str | None)
-        'partition'   # Kafka topic partition if any (str | None)
-    )
-)
+@dataclass(frozen=True)
+class Job:
 
-# noinspection PyUnresolvedReferences,PyProtectedMember
-Job.__new__.__defaults__ = (None,) * len(Job._fields)
+    # KQ job UUID
+    id: Optional[str] = None
+
+    # Unix timestamp indicating when the job was queued.
+    timestamp: Optional[int] = None
+
+    # Name of the Kafka topic.
+    topic: Optional[str] = None
+
+    # Function to execute.
+    func: Optional[Callable] = None
+
+    # Positional arguments for the function.
+    args: Optional[Sequence] = None
+
+    # Keyword arguments for the function.
+    kwargs: Optional[Dict] = None
+
+    # Job timeout threshold in seconds.
+    timeout: Optional[Union[float, int]] = None
+
+    # Kafka message key. Jobs with the same keys are sent
+    # to the same topic partition and executed sequentially.
+    # Applies only when the "partition" field is not set.
+    key: Optional[bytes] = None
+
+    # Kafka topic partition. If set, the "key" field is ignored.
+    partition: Optional[Union[float, int]] = None

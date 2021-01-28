@@ -111,3 +111,6 @@ venv.bak/
 
 # KQ specific
 output.log
+
+# setuptools-scm
+kq/version.py

@@ -1,22 +1,15 @@
 Getting Started
 ---------------
 
-First, ensure that your Kafka instance is up and running:
+Start your Kafka instance. Example using Docker:
 
 .. code-block:: bash
 
-    ~$ ./kafka-server-start.sh -daemon server.properties
+    docker run -p 9092:9092 -e ADV_HOST=127.0.0.1 lensesio/fast-data-dev
 
-Define your KQ worker module:
-
-.. testsetup::
-
-    from unittest import mock
-    mock.patch('math.inf', 0).start()
+Define your KQ ```worker.py`` module:
 
 .. code-block:: python
-
-    # my_worker.py
 
     import logging
 
@@ -46,7 +39,7 @@ Start the worker:
 
 .. code-block:: bash
 
-    ~$ python my_worker.py
+    python my_worker.py
     [INFO] Starting Worker(hosts=127.0.0.1:9092 topic=topic, group=group) ...
 
 Enqueue a function call:
@@ -65,20 +58,17 @@ Enqueue a function call:
     queue = Queue(topic='topic', producer=producer)
 
     # Enqueue a function call.
-    job = queue.enqueue(requests.get, 'https://www.google.com')
+    job = queue.enqueue(requests.get, 'https://google.com')
 
-Sit back and watch the worker process it in the background:
+    # You can also specify the job timeout, Kafka message key and partition.
+    job = queue.using(timeout=5, key=b'foo', partition=0).enqueue(requests.get, 'https://google.com')
+
+Let the worker process it in the background:
 
 .. code-block:: bash
 
-    ~$ python my_worker.py
+    python my_worker.py
     [INFO] Starting Worker(hosts=127.0.0.1:9092, topic=topic, group=group) ...
     [INFO] Processing Message(topic=topic, partition=0, offset=0) ...
     [INFO] Executing job c7bf2359: requests.api.get('https://www.google.com')
     [INFO] Job c7bf2359 returned: <Response [200]>
-
-You can also specify the job timeout, message key and partition:
-
-.. code-block:: python
-
-    job = queue.using(timeout=5, key=b'foo', partition=0).enqueue(requests.get, 'https://www.google.com')

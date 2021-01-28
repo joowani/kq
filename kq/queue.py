@@ -1,8 +1,7 @@
-__all__ = ['Queue']
-
 import logging
 import time
 import uuid
+from typing import Any, Callable, Optional, Union
 
 import dill
 from kafka import KafkaProducer
@@ -10,17 +9,17 @@ from kafka import KafkaProducer
 from kq.job import Job
 from kq.utils import (
     is_dict,
-    is_iter,
-    is_number,
-    is_str,
     is_none_or_bytes,
     is_none_or_func,
     is_none_or_int,
     is_none_or_logger,
+    is_number,
+    is_seq,
+    is_str,
 )
 
 
-class Queue(object):
+class Queue:
     """Enqueues function calls in Kafka topics as :doc:`jobs <job>`.
 
     :param topic: Name of the Kafka topic.
@@ -65,26 +64,27 @@ class Queue(object):
         http://kafka-python.rtfd.io/en/master/apidoc/KafkaProducer.html
     """
 
-    def __init__(self,
-                 topic,
-                 producer,
-                 serializer=None,
-                 timeout=0,
-                 logger=None):
-
-        assert is_str(topic), 'topic must be a str'
-        assert isinstance(producer, KafkaProducer), 'bad producer instance'
-        assert is_none_or_func(serializer), 'serializer must be a callable'
-        assert is_number(timeout), 'timeout must be an int or float'
-        assert timeout >= 0, 'timeout must be 0 or greater'
-        assert is_none_or_logger(logger), 'bad logger instance'
+    def __init__(
+        self,
+        topic: str,
+        producer: KafkaProducer,
+        serializer: Optional[Callable] = None,
+        timeout=0,
+        logger: Optional[logging.Logger] = None,
+    ):
+        assert is_str(topic), "topic must be a str"
+        assert isinstance(producer, KafkaProducer), "bad producer instance"
+        assert is_none_or_func(serializer), "serializer must be a callable"
+        assert is_number(timeout), "timeout must be an int or float"
+        assert timeout >= 0, "timeout must be 0 or greater"
+        assert is_none_or_logger(logger), "bad logger instance"
 
         self._topic = topic
-        self._hosts = producer.config['bootstrap_servers']
+        self._hosts = producer.config["bootstrap_servers"]
         self._producer = producer
         self._serializer = serializer or dill.dumps
         self._timeout = timeout
-        self._logger = logger or logging.getLogger('kq.queue')
+        self._logger = logger or logging.getLogger("kq.queue")
         self._default_enqueue_spec = EnqueueSpec(
             topic=self._topic,
             producer=self._producer,
@@ -92,7 +92,7 @@ class Queue(object):
             logger=self._logger,
             timeout=self._timeout,
             key=None,
-            partition=None
+            partition=None,
         )
 
     def __repr__(self):
@@ -101,7 +101,7 @@ class Queue(object):
         :return: String representation of the queue.
         :rtype: str
         """
-        return 'Queue(hosts={}, topic={})'.format(self._hosts, self._topic)
+        return "Queue(hosts={}, topic={})".format(self._hosts, self._topic)
 
     def __del__(self):  # pragma: no covers
         # noinspection PyBroadException
@@ -155,7 +155,7 @@ class Queue(object):
         """
         return self._timeout
 
-    def enqueue(self, func, *args, **kwargs):
+    def enqueue(self, func: Callable, *args: Any, **kwargs: Any):
         """Enqueue a function call or a :doc:`job <job>`.
 
         :param func: Function or a :doc:`job <job>` object. Must be
@@ -204,7 +204,12 @@ class Queue(object):
         """
         return self._default_enqueue_spec.enqueue(func, *args, **kwargs)
 
-    def using(self, timeout=None, key=None, partition=None):
+    def using(
+        self,
+        timeout: Optional[Union[float, int]] = None,
+        key: Optional[bytes] = None,
+        partition: Optional[int] = None,
+    ):
         """Set enqueue specifications such as timeout, key and partition.
 
         :param timeout: Job timeout threshold in seconds. If not set, default
@@ -259,34 +264,35 @@ class Queue(object):
             logger=self._logger,
             timeout=timeout or self._timeout,
             key=key,
-            partition=partition
+            partition=partition,
         )
 
 
 class EnqueueSpec(object):
-
     __slots__ = [
-        '_topic',
-        '_producer',
-        '_serializer',
-        '_logger',
-        '_timeout',
-        '_key',
-        '_partition',
-        'delay'
+        "_topic",
+        "_producer",
+        "_serializer",
+        "_logger",
+        "_timeout",
+        "_key",
+        "_partition",
+        "delay",
     ]
 
-    def __init__(self,
-                 topic,
-                 producer,
-                 serializer,
-                 logger,
-                 timeout,
-                 key,
-                 partition):
-        assert is_number(timeout), 'timeout must be an int or float'
-        assert is_none_or_bytes(key), 'key must be a bytes'
-        assert is_none_or_int(partition), 'partition must be an int'
+    def __init__(
+        self,
+        topic: str,
+        producer: KafkaProducer,
+        serializer: Callable,
+        logger: logging.Logger,
+        timeout: Union[float, int],
+        key: Optional[bytes],
+        partition: Optional[int],
+    ):
+        assert is_number(timeout), "timeout must be an int or float"
+        assert is_none_or_bytes(key), "key must be a bytes"
+        assert is_none_or_int(partition), "partition must be an int"
 
         self._topic = topic
         self._producer = producer
@@ -296,12 +302,12 @@ class EnqueueSpec(object):
         self._key = key
         self._partition = partition
 
-    def enqueue(self, obj, *args, **kwargs):
+    def enqueue(self, obj: Union[Callable, Job], *args: Any, **kwargs: Any):
         """Enqueue a function call or :doc:`job` instance.
 
-        :param func: Function or :doc:`job <job>`. Must be serializable and
+        :param obj: Function or :doc:`job <job>`. Must be serializable and
             importable by :doc:`worker <worker>` processes.
-        :type func: callable | :doc:`kq.Job <job>`
+        :type obj: callable | :doc:`kq.Job <job>`
         :param args: Positional arguments for the function. Ignored if **func**
             is a :doc:`job <job>` object.
         :param kwargs: Keyword arguments for the function. Ignored if **func**
@@ -312,23 +318,32 @@ class EnqueueSpec(object):
         timestamp = int(time.time() * 1000)
 
         if isinstance(obj, Job):
-            job_id = uuid.uuid4().hex if obj.id is None else obj.id
+            if obj.id is None:
+                job_id = uuid.uuid4().hex
+            else:
+                assert is_str(obj.id), "Job.id must be a str"
+                job_id = obj.id
+
+            if obj.args is None:
+                args = tuple()
+            else:
+                assert is_seq(obj.args), "Job.args must be a list or tuple"
+                args = tuple(obj.args)
+
+            assert callable(obj.func), "Job.func must be a callable"
+
             func = obj.func
-            args = tuple() if obj.args is None else obj.args
             kwargs = {} if obj.kwargs is None else obj.kwargs
             timeout = self._timeout if obj.timeout is None else obj.timeout
             key = self._key if obj.key is None else obj.key
             part = self._partition if obj.partition is None else obj.partition
 
-            assert is_str(job_id), 'Job.id must be a str'
-            assert callable(func), 'Job.func must be a callable'
-            assert is_iter(args), 'Job.args must be a list or tuple'
-            assert is_dict(kwargs), 'Job.kwargs must be a dict'
-            assert is_number(timeout), 'Job.timeout must be an int or float'
-            assert is_none_or_bytes(key), 'Job.key must be a bytes'
-            assert is_none_or_int(part), 'Job.partition must be an int'
+            assert is_dict(kwargs), "Job.kwargs must be a dict"
+            assert is_number(timeout), "Job.timeout must be an int or float"
+            assert is_none_or_bytes(key), "Job.key must be a bytes"
+            assert is_none_or_int(part), "Job.partition must be an int"
         else:
-            assert callable(obj), 'first argument must be a callable'
+            assert callable(obj), "first argument must be a callable"
             job_id = uuid.uuid4().hex
             func = obj
             args = args
@@ -346,15 +361,15 @@ class EnqueueSpec(object):
             kwargs=kwargs,
             timeout=timeout,
             key=key,
-            partition=part
+            partition=part,
         )
-        self._logger.info('Enqueueing {} ...'.format(job))
+        self._logger.info("Enqueueing {} ...".format(job))
         self._producer.send(
             self._topic,
             value=self._serializer(job),
             key=self._serializer(key) if key else None,
             partition=part,
-            timestamp_ms=timestamp
+            timestamp_ms=timestamp,
         )
         self._producer.flush()
         return job

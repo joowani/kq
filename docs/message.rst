@@ -1,30 +1,31 @@
 Message
 -------
 
-KQ encapsulates Kafka messages using ``kq.Message`` namedtuples, which have
-the following fields:
-
-* **topic** (str): Name of the Kafka topic.
-* **partition** (int): Kafka topic partition.
-* **offset** (int): Partition offset.
-* **key** (bytes | None): Kafka message key.
-* **value** (bytes): Kafka message payload.
+KQ encapsulates Kafka messages using ``kq.Message`` dataclass:
 
 .. testcode::
 
-    from collections import namedtuple
+    from dataclasses import dataclass
+    from typing import Optional
 
-    Message = namedtuple(
-        typename='Message',
-        field_names=(
-            'topic',
-            'partition',
-            'offset',
-            'key',
-            'value'
-        )
-    )
 
-Raw Kafka messages are converted into these namedtuples, which are then sent
+    @dataclass(frozen=True)
+    class Message:
+        # Name of the Kafka topic.
+        topic: str
+
+        # Kafka topic partition.
+        partition: int
+
+        # Partition offset.
+        offset: int
+
+        # Kafka message key.
+        key: Optional[bytes]
+
+        # Kafka message payload.
+        value: bytes
+
+Raw Kafka messages are converted into above dataclasses, which are then sent
 to :doc:`workers <worker>` (and also to :doc:`callback functions <callback>`
 if defined).

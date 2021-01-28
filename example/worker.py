@@ -2,16 +2,16 @@ import logging
 
 import dill
 from kafka import KafkaConsumer
+
 from kq import Job, Message, Worker
 
 # Set up logging
 formatter = logging.Formatter(
-    fmt='[%(asctime)s][%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    fmt="[%(asctime)s][%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
 stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(formatter)
-logger = logging.getLogger('kq.worker')
+logger = logging.getLogger("kq.worker")
 logger.setLevel(logging.DEBUG)
 logger.addHandler(stream_handler)
 
@@ -35,27 +35,27 @@ def callback(status, message, job, result, exception, stacktrace):
     :param stacktrace: Exception traceback, or None if there was none.
     :type stacktrace: str | None
     """
-    assert status in ['invalid', 'success', 'timeout', 'failure']
+    assert status in ["invalid", "success", "timeout", "failure"]
     assert isinstance(message, Message)
 
-    if status == 'invalid':
+    if status == "invalid":
         assert job is None
         assert result is None
         assert exception is None
         assert stacktrace is None
 
-    if status == 'success':
+    if status == "success":
         assert isinstance(job, Job)
         assert exception is None
         assert stacktrace is None
 
-    elif status == 'timeout':
+    elif status == "timeout":
         assert isinstance(job, Job)
         assert result is None
         assert exception is None
         assert stacktrace is None
 
-    elif status == 'failure':
+    elif status == "failure":
         assert isinstance(job, Job)
         assert result is None
         assert exception is not None
@@ -70,21 +70,18 @@ def deserializer(serialized):
     :return: Deserialized job object.
     :rtype: kq.Job
     """
-    assert isinstance(serialized, bytes), 'Expecting a bytes'
+    assert isinstance(serialized, bytes), "Expecting a bytes"
     return dill.loads(serialized)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     consumer = KafkaConsumer(
-        bootstrap_servers='127.0.0.1:9092',
-        group_id='group',
+        bootstrap_servers="127.0.0.1:9092",
+        group_id="group",
         enable_auto_commit=True,
-        auto_offset_reset='latest'
+        auto_offset_reset="latest",
     )
     worker = Worker(
-        topic='topic',
-        consumer=consumer,
-        callback=callback,
-        deserializer=deserializer
+        topic="topic", consumer=consumer, callback=callback, deserializer=deserializer
     )
     worker.start()

@@ -3,7 +3,7 @@ Logging
 
 By default, :doc:`queues <queue>` log messages via ``kq.queue`` logger, and
 :doc:`workers <worker>` log messages via ``kq.worker`` logger. You can either
-use these loggers or inject your own during queue/worker initialization.
+use these default loggers or set your own during queue/worker initialization.
 
 **Example:**
 
