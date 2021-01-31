@@ -2,7 +2,7 @@
 
 ![Build](https://github.com/joowani/kq/workflows/Build/badge.svg)
 ![CodeQL](https://github.com/joowani/kq/workflows/CodeQL/badge.svg)
-[![codecov](https://codecov.io/gh/joowani/kq/branch/master/graph/badge.svg?token=d6ooyuUCl6)](https://codecov.io/gh/joowani/kq)
+[![codecov](https://codecov.io/gh/joowani/kq/branch/main/graph/badge.svg?token=U81CouJF4T)](https://codecov.io/gh/joowani/kq)
 
 **KQ (Kafka Queue)** is a lightweight Python library which lets you queue and
 execute jobs asynchronously using [Apache Kafka](https://kafka.apache.org/). It is 
