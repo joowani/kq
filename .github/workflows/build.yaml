@@ -1,5 +1,7 @@
 name: Build
 on:
+  workflow_dispatch:
+    inputs:
   push:
     branches: [ main, dev ]
   pull_request:
@@ -10,7 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
         python-version: [ 3.6, 3.7, 3.8, 3.9 ]
     steps:
       - name: Start Kafka docker
@@ -42,6 +43,6 @@ jobs:
         run: python -m sphinx -b html -W docs docs/_build
       - name: Upload coverge to Codecov
         uses: codecov/codecov-action@v1
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+        if: matrix.python-version == '3.8'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
