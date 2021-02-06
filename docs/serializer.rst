@@ -1,8 +1,7 @@
 Serializer
 ----------
 
-You can inject your own functions for serializing (pickling) jobs. By default,
-KQ uses the dill_ library.
+You can use custom functions for serialization. By default, KQ uses the dill_ library.
 
 .. _dill: https://github.com/uqfoundation/dill
 

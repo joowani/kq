@@ -1,11 +1,13 @@
 Getting Started
 ---------------
 
-Start your Kafka instance. Example using Docker:
+Start your Kafka instance. Example using Docker_:
 
 .. code-block:: bash
 
     docker run -p 9092:9092 -e ADV_HOST=127.0.0.1 lensesio/fast-data-dev
+
+.. _Docker: https://github.com/lensesio/fast-data-dev
 
 Define your KQ ```worker.py`` module:
 

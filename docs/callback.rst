@@ -1,8 +1,8 @@
 Callback
 --------
 
-KQ lets you set a callback function to workers. The callback function is invoked each
-time a message is processed. It must accept the following positional arguments:
+KQ lets you assign a callback function to workers. The callback function is invoked
+each time a message is processed. It must accept the following positional arguments:
 
 * **status** (str): Job status. Possible values are:
 
@@ -20,8 +20,7 @@ time a message is processed. It must accept the following positional arguments:
 * **stacktrace** (str | None): Exception stacktrace, or None if job finished
   successfully.
 
-You can inject your callback function during :doc:`worker <worker>`
-initialization.
+You can assign your callback function during :doc:`worker <worker>` initialization.
 
 **Example:**
 

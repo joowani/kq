@@ -1,10 +1,15 @@
-KQ: Kafka-based Job Queue for Python
-------------------------------------
+KQ: Kafka Job Queue for Python
+------------------------------
 
-Welcome to the documentation for **KQ (Kafka Queue)**, Python library that lets you
-enqueue and execute jobs asynchronously using `Apache Kafka`_.
+.. image:: https://img.shields.io/github/license/joowani/kq?color=bright
+    :alt: GitHub License
+    :target: https://github.com/joowani/kq/blob/main/LICENSE
 
-KQ is built on top of kafka-python_.
+.. image:: https://img.shields.io/badge/python-3.6%2B-blue
+    :alt: Python Versions
+
+**KQ (Kafka Queue)** is a Python library which lets you enqueue and execute jobs
+asynchronously using `Apache Kafka`_. It uses kafka-python_ under the hood.
 
 Requirements
 ============

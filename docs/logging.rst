@@ -1,9 +1,9 @@
 Logging
 -------
 
-By default, :doc:`queues <queue>` log messages via ``kq.queue`` logger, and
-:doc:`workers <worker>` log messages via ``kq.worker`` logger. You can either
-use these default loggers or set your own during queue/worker initialization.
+By default, :doc:`queues <queue>` log messages to ``kq.queue`` logger, and
+:doc:`workers <worker>` to ``kq.worker`` logger. You can use these default loggers
+or set your own during queue/worker initialization.
 
 **Example:**
 
