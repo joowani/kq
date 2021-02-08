@@ -20,7 +20,7 @@ Requirements
 Installation
 ============
 
-Install using pip:
+Install via pip_:
 
 .. code-block:: bash
 
@@ -44,3 +44,4 @@ Contents
 .. _Apache Kafka: https://kafka.apache.org
 .. _kafka-python: https://github.com/dpkp/kafka-python
 .. _GitHub: https://github.com/joowani/kq
+.. _pip: https://pip.pypa.io

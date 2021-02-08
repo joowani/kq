@@ -105,19 +105,3 @@ python my_worker.py
 ```
 
 See the [documentation](https://kq.readthedocs.io) for more information.
-
-### Contributing
-
-Set up dev environment:
-
-```shell
-cd ~/your/kq/clone          # Activate venv if you have one (recommended)
-pip install -e .[dev]       # Install dev dependencies (black, mypy, pre-commit etc.)
-pre-commit install          # Install git pre-commit hooks
-```
-
-Run unit tests:
-```shell
-docker run -p 9092:9092 -e ADV_HOST=127.0.0.1 lensesio/fast-data-dev  # Start Kafka docker
-py.test
-```
