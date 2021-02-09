@@ -112,7 +112,7 @@ def test_queue_enqueue_job_fully_populated(func, queue, topic, log):
     job = queue.enqueue(job)
     assert isinstance(job, Job)
     assert job.id == job_id
-    assert job.timestamp == timestamp
+    assert job.timestamp >= timestamp
     assert job.topic == topic
     assert job.func == func
     assert job.args == (0,)
