@@ -3,7 +3,7 @@ from inspect import isbuiltin, isclass, isfunction, ismethod
 from typing import Any
 
 
-def get_call_repr(func: Any, *args: Any, **kwargs: Any):
+def get_call_repr(func: Any, *args: Any, **kwargs: Any) -> str:
     """Return the string representation of the function call.
 
     :param func: A callable (e.g. function, method).
@@ -27,33 +27,33 @@ def get_call_repr(func: Any, *args: Any, **kwargs: Any):
     return "{}({})".format(func_repr, ", ".join(args_reprs + kwargs_reprs))
 
 
-def is_none_or_logger(obj):
+def is_none_or_logger(obj: Any) -> bool:
     return obj is None or isinstance(obj, logging.Logger)
 
 
-def is_none_or_int(obj):
+def is_none_or_int(obj: Any) -> bool:
     return obj is None or isinstance(obj, int)
 
 
-def is_none_or_bytes(obj):
+def is_none_or_bytes(obj: Any) -> bool:
     return obj is None or isinstance(obj, bytes)
 
 
-def is_none_or_func(obj):
+def is_none_or_func(obj: Any) -> bool:
     return obj is None or callable(obj)
 
 
-def is_str(obj):
+def is_str(obj: Any) -> bool:
     return isinstance(obj, str)
 
 
-def is_number(obj):
+def is_number(obj: Any) -> bool:
     return isinstance(obj, (int, float))
 
 
-def is_dict(obj):
+def is_dict(obj: Any) -> bool:
     return isinstance(obj, dict)
 
 
-def is_seq(obj):
+def is_seq(obj: Any) -> bool:
     return isinstance(obj, (list, tuple))

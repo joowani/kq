@@ -1,6 +1,5 @@
 import _thread
 import logging
-import math
 import threading
 import traceback
 from typing import Any, Callable, Optional
@@ -82,7 +81,7 @@ class Worker:
         self._deserializer = deserializer or dill.loads
         self._logger = logger or logging.getLogger("kq.worker")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return the string representation of the worker.
 
         :return: String representation of the worker.
@@ -92,7 +91,7 @@ class Worker:
             self._hosts, self._topic, self._group
         )
 
-    def __del__(self):  # pragma: no cover
+    def __del__(self) -> None:  # pragma: no cover
         # noinspection PyBroadException
         try:
             self._consumer.close()
@@ -107,7 +106,7 @@ class Worker:
         res: Any,
         err: Optional[Exception],
         stacktrace: Optional[str],
-    ):
+    ) -> None:
         """Execute the callback.
 
         :param status: Job status. Possible values are "invalid" (job could not
@@ -133,7 +132,7 @@ class Worker:
             except Exception as e:
                 self._logger.exception("Callback raised an exception: {}".format(e))
 
-    def _process_message(self, msg):
+    def _process_message(self, msg: Message) -> None:
         """De-serialize the message and execute the job.
 
         :param msg: Kafka message.
@@ -154,6 +153,7 @@ class Worker:
         else:
             self._logger.info("Executing job {}: {}".format(job.id, job_repr))
 
+            timer: Optional[threading.Timer]
             if job.timeout:
                 timer = threading.Timer(job.timeout, _thread.interrupt_main)
                 timer.start()
@@ -176,7 +176,7 @@ class Worker:
                     timer.cancel()
 
     @property
-    def hosts(self):
+    def hosts(self) -> str:
         """Return comma-separated Kafka hosts and ports string.
 
         :return: Comma-separated Kafka hosts and ports.
@@ -185,7 +185,7 @@ class Worker:
         return self._hosts
 
     @property
-    def topic(self):
+    def topic(self) -> str:
         """Return the name of the Kafka topic.
 
         :return: Name of the Kafka topic.
@@ -194,7 +194,7 @@ class Worker:
         return self._topic
 
     @property
-    def group(self):
+    def group(self) -> str:
         """Return the Kafka consumer group ID.
 
         :return: Kafka consumer group ID.
@@ -203,7 +203,7 @@ class Worker:
         return self._group
 
     @property
-    def consumer(self):
+    def consumer(self) -> KafkaConsumer:
         """Return the Kafka consumer instance.
 
         :return: Kafka consumer instance.
@@ -212,7 +212,7 @@ class Worker:
         return self._consumer
 
     @property
-    def deserializer(self):
+    def deserializer(self) -> Callable:
         """Return the deserializer function.
 
         :return: Deserializer function.
@@ -221,7 +221,7 @@ class Worker:
         return self._deserializer
 
     @property
-    def callback(self):
+    def callback(self) -> Optional[Callable]:
         """Return the callback function.
 
         :return: Callback function, or None if not set.
@@ -229,12 +229,14 @@ class Worker:
         """
         return self._callback
 
-    def start(self, max_messages=math.inf, commit_offsets=True):
+    def start(
+        self, max_messages: Optional[int] = None, commit_offsets: bool = True
+    ) -> int:
         """Start processing Kafka messages and executing jobs.
 
         :param max_messages: Maximum number of Kafka messages to process before
             stopping. If not set, worker runs until interrupted.
-        :type max_messages: int
+        :type max_messages: int | None
         :param commit_offsets: If set to True, consumer offsets are committed
             every time a message is processed (default: True).
         :type commit_offsets: bool
@@ -247,7 +249,7 @@ class Worker:
         self._consumer.subscribe([self.topic])
 
         messages_processed = 0
-        while messages_processed < max_messages:
+        while max_messages is not None and messages_processed < max_messages:
             record = next(self._consumer)
 
             message = Message(
