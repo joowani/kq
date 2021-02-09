@@ -1,4 +1,4 @@
-## KQ: Kafka Job Queue for Python
+# KQ: Kafka Job Queue for Python
 
 ![Build](https://github.com/joowani/kq/workflows/Build/badge.svg)
 ![CodeQL](https://github.com/joowani/kq/workflows/CodeQL/badge.svg)
@@ -11,17 +11,17 @@
 execute jobs asynchronously using [Apache Kafka](https://kafka.apache.org/). It uses
 [kafka-python](https://github.com/dpkp/kafka-python) under the hood.
 
-### Announcements
+## Announcements
 
 * Support for Python 3.5 will be dropped from KQ version 3.0.0.
 * See [releases](https://github.com/joowani/kq/releases) for latest updates.
 
-### Requirements
+## Requirements
 
 * [Apache Kafka](https://kafka.apache.org) 0.9+
 * Python 3.6+
 
-### Installation
+## Installation
 
 Install using [pip](https://pip.pypa.io):
 
@@ -29,7 +29,7 @@ Install using [pip](https://pip.pypa.io):
 pip install kq
 ```
 
-### Usage
+## Getting Started
 
 Start your Kafka instance. 
 Example using [Docker](https://github.com/lensesio/fast-data-dev):
@@ -47,22 +47,22 @@ from kafka import KafkaConsumer
 from kq import Worker
 
 # Set up logging.
-formatter = logging.Formatter('[%(levelname)s] %(message)s')
+formatter = logging.Formatter("[%(levelname)s] %(message)s")
 stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(formatter)
-logger = logging.getLogger('kq.worker')
+logger = logging.getLogger("kq.worker")
 logger.setLevel(logging.DEBUG)
 logger.addHandler(stream_handler)
 
 # Set up a Kafka consumer.
 consumer = KafkaConsumer(
-    bootstrap_servers='127.0.0.1:9092',
-    group_id='group',
-    auto_offset_reset='latest'
+    bootstrap_servers="127.0.0.1:9092",
+    group_id="group",
+    auto_offset_reset="latest"
 )
 
 # Set up a worker.
-worker = Worker(topic='topic', consumer=consumer)
+worker = Worker(topic="topic", consumer=consumer)
 worker.start()
 ```
 
@@ -82,16 +82,16 @@ from kafka import KafkaProducer
 from kq import Queue
 
 # Set up a Kafka producer.
-producer = KafkaProducer(bootstrap_servers='127.0.0.1:9092')
+producer = KafkaProducer(bootstrap_servers="127.0.0.1:9092")
 
 # Set up a queue.
-queue = Queue(topic='topic', producer=producer)
+queue = Queue(topic="topic", producer=producer)
 
 # Enqueue a function call.
-job = queue.enqueue(requests.get, 'https://google.com')
+job = queue.enqueue(requests.get, "https://google.com")
 
 # You can also specify the job timeout, Kafka message key and partition.
-job = queue.using(timeout=5, key=b'foo', partition=0).enqueue(requests.get, 'https://google.com')
+job = queue.using(timeout=5, key=b"foo", partition=0).enqueue(requests.get, "https://google.com")
 ```
 
 The worker executes the job in the background:
@@ -100,7 +100,7 @@ The worker executes the job in the background:
 python my_worker.py
 [INFO] Starting Worker(hosts=127.0.0.1:9092, topic=topic, group=group) ...
 [INFO] Processing Message(topic=topic, partition=0, offset=0) ...
-[INFO] Executing job c7bf2359: requests.api.get('https://www.google.com')
+[INFO] Executing job c7bf2359: requests.api.get("https://www.google.com")
 [INFO] Job c7bf2359 returned: <Response [200]>
 ```
 
