@@ -34,7 +34,7 @@ jobs:
       - name: Run isort
         run: isort --check --profile=black .
       - name: Run mypy
-        run: mypy .
+        run: mypy kq
       - name: Run pytest
         run: py.test --cov=./ --cov-report=xml
       - name: Run Sphinx doctest

@@ -35,7 +35,7 @@ class EnqueueSpec:
         self,
         topic: str,
         producer: KafkaProducer,
-        serializer: Callable,
+        serializer: Callable[[Any], bytes],
         logger: logging.Logger,
         timeout: Union[float, int],
         key: Optional[bytes],
@@ -53,7 +53,9 @@ class EnqueueSpec:
         self._key = key
         self._partition = partition
 
-    def enqueue(self, obj: Union[Callable, Job], *args: Any, **kwargs: Any) -> Job:
+    def enqueue(
+        self, obj: Union[Callable[..., Any], Job], *args: Any, **kwargs: Any
+    ) -> Job:
         """Enqueue a function call or :doc:`job` instance.
 
         :param obj: Function or :doc:`job <job>`. Must be serializable and
@@ -175,8 +177,8 @@ class Queue:
         self,
         topic: str,
         producer: KafkaProducer,
-        serializer: Optional[Callable] = None,
-        timeout=0,
+        serializer: Optional[Callable[..., bytes]] = None,
+        timeout: int = 0,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         assert is_str(topic), "topic must be a str"
@@ -187,7 +189,7 @@ class Queue:
         assert is_none_or_logger(logger), "bad logger instance"
 
         self._topic = topic
-        self._hosts = producer.config["bootstrap_servers"]
+        self._hosts: str = producer.config["bootstrap_servers"]
         self._producer = producer
         self._serializer = serializer or dill.dumps
         self._timeout = timeout
@@ -245,7 +247,7 @@ class Queue:
         return self._producer
 
     @property
-    def serializer(self) -> Callable:
+    def serializer(self) -> Callable[..., bytes]:
         """Return the serializer function.
 
         :return: Serializer function.
@@ -262,7 +264,7 @@ class Queue:
         """
         return self._timeout
 
-    def enqueue(self, func: Callable, *args: Any, **kwargs: Any) -> Job:
+    def enqueue(self, func: Callable[..., bytes], *args: Any, **kwargs: Any) -> Job:
         """Enqueue a function call or a :doc:`job <job>`.
 
         :param func: Function or a :doc:`job <job>` object. Must be

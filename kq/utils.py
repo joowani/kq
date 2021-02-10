@@ -1,9 +1,9 @@
 import logging
 from inspect import isbuiltin, isclass, isfunction, ismethod
-from typing import Any
+from typing import Any, Callable
 
 
-def get_call_repr(func: Any, *args: Any, **kwargs: Any) -> str:
+def get_call_repr(func: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     """Return the string representation of the function call.
 
     :param func: A callable (e.g. function, method).

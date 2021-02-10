@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 
 @dataclass(frozen=True)
@@ -15,13 +15,13 @@ class Job:
     topic: Optional[str] = None
 
     # Function to execute.
-    func: Optional[Callable] = None
+    func: Optional[Callable[..., Any]] = None
 
     # Positional arguments for the function.
-    args: Optional[Sequence] = None
+    args: Optional[Sequence[Any]] = None
 
     # Keyword arguments for the function.
-    kwargs: Optional[Dict] = None
+    kwargs: Optional[Dict[str, Any]] = None
 
     # Job timeout threshold in seconds.
     timeout: Optional[Union[float, int]] = None

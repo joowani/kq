@@ -7,7 +7,7 @@ from typing import Any, Callable, Optional
 import dill
 from kafka import KafkaConsumer
 
-from kq import Job
+from kq.job import Job
 from kq.message import Message
 from kq.utils import get_call_repr, is_none_or_func, is_none_or_logger, is_str
 
@@ -62,8 +62,8 @@ class Worker:
         self,
         topic: str,
         consumer: KafkaConsumer,
-        callback: Optional[Callable] = None,
-        deserializer: Optional[Callable] = None,
+        callback: Optional[Callable[..., Any]] = None,
+        deserializer: Optional[Callable[[bytes], Any]] = None,
         logger: Optional[logging.Logger] = None,
     ):
         assert is_str(topic), "topic must be a str"
@@ -74,8 +74,8 @@ class Worker:
         assert is_none_or_logger(logger), "bad logger instance"
 
         self._topic = topic
-        self._hosts = consumer.config["bootstrap_servers"]
-        self._group = consumer.config["group_id"]
+        self._hosts: str = consumer.config["bootstrap_servers"]
+        self._group: str = consumer.config["group_id"]
         self._consumer = consumer
         self._callback = callback
         self._deserializer = deserializer or dill.loads
@@ -212,7 +212,7 @@ class Worker:
         return self._consumer
 
     @property
-    def deserializer(self) -> Callable:
+    def deserializer(self) -> Callable[[bytes], Any]:
         """Return the deserializer function.
 
         :return: Deserializer function.
@@ -221,7 +221,7 @@ class Worker:
         return self._deserializer
 
     @property
-    def callback(self) -> Optional[Callable]:
+    def callback(self) -> Optional[Callable[..., Any]]:
         """Return the callback function.
 
         :return: Callback function, or None if not set.
