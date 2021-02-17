@@ -116,7 +116,7 @@ class EnqueueSpec:
             key=key,
             partition=part,
         )
-        self._logger.info("Enqueueing {} ...".format(job))
+        self._logger.info(f"Enqueueing {job} ...")
         self._producer.send(
             self._topic,
             value=self._serializer(job),
@@ -210,7 +210,7 @@ class Queue:
         :return: String representation of the queue.
         :rtype: str
         """
-        return "Queue(hosts={}, topic={})".format(self._hosts, self._topic)
+        return f"Queue(hosts={self._hosts}, topic={self._topic})"
 
     def __del__(self) -> None:  # pragma: no covers
         # noinspection PyBroadException

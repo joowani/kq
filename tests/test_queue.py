@@ -57,7 +57,7 @@ def test_queue_enqueue_function(queue, func, topic, log):
     assert job.timeout == 0
     assert job.key is None
     assert job.partition is None
-    assert log.last_line == "[INFO] Enqueueing {} ...".format(job)
+    assert log.last_line == f"[INFO] Enqueueing {job} ..."
 
 
 def test_queue_enqueue_function_with_spec(func, queue, topic, log):
@@ -72,10 +72,9 @@ def test_queue_enqueue_function_with_spec(func, queue, topic, log):
     assert job.timeout == 0
     assert job.key == b"foo"
     assert job.partition == 0
-    assert log.last_line == "[INFO] Enqueueing {} ...".format(job)
+    assert log.last_line == f"[INFO] Enqueueing {job} ..."
 
 
-# noinspection PyTypeChecker
 def test_queue_enqueue_function_with_bad_args(func, queue):
     with pytest.raises(AssertionError) as e:
         queue.enqueue(1)
@@ -120,7 +119,7 @@ def test_queue_enqueue_job_fully_populated(func, queue, topic, log):
     assert job.timeout == 10
     assert job.key == b"bar"
     assert job.partition == 0
-    assert log.last_line.startswith("[INFO] Enqueueing {} ...".format(job))
+    assert log.last_line.startswith(f"[INFO] Enqueueing {job} ...")
 
 
 def test_queue_enqueue_job_partially_populated(func, queue, topic, log):
@@ -137,7 +136,24 @@ def test_queue_enqueue_job_partially_populated(func, queue, topic, log):
     assert job.timeout == 0
     assert job.key is None
     assert job.partition is None
-    assert log.last_line.startswith("[INFO] Enqueueing {} ...".format(job))
+    assert log.last_line.startswith(f"[INFO] Enqueueing {job} ...")
+
+
+def test_queue_enqueue_job_with_no_args(func, queue, topic, log):
+    job = Job(func=func)
+
+    job = queue.enqueue(job)
+    assert isinstance(job, Job)
+    assert isinstance(job.id, str)
+    assert isinstance(job.timestamp, int)
+    assert job.topic == topic
+    assert job.func == func
+    assert job.args == tuple()
+    assert job.kwargs == {}
+    assert job.timeout == 0
+    assert job.key is None
+    assert job.partition is None
+    assert log.last_line.startswith(f"[INFO] Enqueueing {job} ...")
 
 
 def test_queue_enqueue_job_with_spec(func, queue, topic, log):
@@ -168,7 +184,7 @@ def test_queue_enqueue_job_with_spec(func, queue, topic, log):
     assert job.timeout == 10
     assert job.key == b"bar"
     assert job.partition == 0
-    assert log.last_line.startswith("[INFO] Enqueueing {} ...".format(job))
+    assert log.last_line.startswith(f"[INFO] Enqueueing {job} ...")
 
 
 def test_queue_enqueue_job_with_bad_args(func, queue, topic):

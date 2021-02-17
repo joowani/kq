@@ -95,7 +95,7 @@ class Callback(object):
             assert exception is not None
             assert stacktrace is not None
 
-        self.logger.info('Callback got job status "{}"'.format(status))
+        self.logger.info(f'Callback got job status "{status}"')
 
 
 class Deserializer(object):

@@ -87,9 +87,7 @@ class Worker:
         :return: String representation of the worker.
         :rtype: str
         """
-        return "Worker(hosts={}, topic={}, group={})".format(
-            self._hosts, self._topic, self._group
-        )
+        return f"Worker(hosts={self._hosts}, topic={self._topic}, group={self._group})"
 
     def __del__(self) -> None:  # pragma: no cover
         # noinspection PyBroadException
@@ -129,8 +127,8 @@ class Worker:
             try:
                 self._logger.info("Executing callback ...")
                 self._callback(status, message, job, res, err, stacktrace)
-            except Exception as e:
-                self._logger.exception("Callback raised an exception: {}".format(e))
+            except Exception as err:
+                self._logger.exception(f"Callback raised an exception: {err}")
 
     def _process_message(self, msg: Message) -> None:
         """De-serialize the message and execute the job.
@@ -148,10 +146,10 @@ class Worker:
             job_repr = get_call_repr(job.func, *job.args, **job.kwargs)
 
         except Exception as err:
-            self._logger.exception("Job was invalid: {}".format(err))
+            self._logger.exception(f"Job was invalid: {err}")
             self._execute_callback("invalid", msg, None, None, None, None)
         else:
-            self._logger.info("Executing job {}: {}".format(job.id, job_repr))
+            self._logger.info(f"Executing job {job.id}: {job_repr}")
 
             timer: Optional[threading.Timer]
             if job.timeout:
@@ -162,14 +160,14 @@ class Worker:
             try:
                 res = job.func(*job.args, **job.kwargs)
             except KeyboardInterrupt:
-                self._logger.error("Job {} timed out or was interrupted".format(job.id))
+                self._logger.error(f"Job {job.id} timed out or was interrupted")
                 self._execute_callback("timeout", msg, job, None, None, None)
             except Exception as err:
-                self._logger.exception("Job {} raised an exception:".format(job.id))
+                self._logger.exception(f"Job {job.id} raised an exception:")
                 tb = traceback.format_exc()
                 self._execute_callback("failure", msg, job, None, err, tb)
             else:
-                self._logger.info("Job {} returned: {}".format(job.id, res))
+                self._logger.info(f"Job {job.id} returned: {res}")
                 self._execute_callback("success", msg, job, res, None, None)
             finally:
                 if timer is not None:
@@ -243,7 +241,7 @@ class Worker:
         :return: Total number of messages processed.
         :rtype: int
         """
-        self._logger.info("Starting {} ...".format(self))
+        self._logger.info(f"Starting {self} ...")
 
         self._consumer.unsubscribe()
         self._consumer.subscribe([self.topic])
