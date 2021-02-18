@@ -212,7 +212,7 @@ class Queue:
         """
         return f"Queue(hosts={self._hosts}, topic={self._topic})"
 
-    def __del__(self) -> None:  # pragma: no covers
+    def __del__(self) -> None:  # pragma: no cover
         # noinspection PyBroadException
         try:
             self._producer.close()

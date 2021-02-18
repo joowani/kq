@@ -43,7 +43,7 @@ def timeout_function(a, b):
 
 
 # noinspection PyMethodMayBeStatic
-class Callable(object):  # pragma: no covers
+class Callable(object):  # pragma: no cover
 
     unbound_method = success_function
 
