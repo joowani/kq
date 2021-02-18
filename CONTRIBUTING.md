@@ -11,7 +11,7 @@ Run unit tests with coverage:
 
 ```shell
 docker run -d -p 9092:9092 -e ADV_HOST=127.0.0.1 lensesio/fast-data-dev  # Start Kafka docker.
-py.test --cov=./ --cov-report=html  # Open htmlcov/index.html in your browser
+py.test --cov=kq --cov-report=html  # Open htmlcov/index.html in your browser
 ```
 
 Build and test documentation:
