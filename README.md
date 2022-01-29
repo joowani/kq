@@ -2,7 +2,7 @@
 
 ![Build](https://github.com/joowani/kq/workflows/Build/badge.svg)
 ![CodeQL](https://github.com/joowani/kq/workflows/CodeQL/badge.svg)
-[![codecov](https://codecov.io/gh/joowani/kq/branch/main/graph/badge.svg?token=U81CouJF4T)](https://codecov.io/gh/joowani/kq)
+[![codecov](https://codecov.io/gh/joowani/kq/branch/main/graph/badge.svg?token=ha9Xg7eULv)](https://codecov.io/gh/joowani/kq)
 [![PyPI version](https://badge.fury.io/py/kq.svg)](https://badge.fury.io/py/kq)
 [![GitHub license](https://img.shields.io/github/license/joowani/kq?color=brightgreen)](https://github.com/joowani/kq/blob/main/LICENSE)
 ![Python version](https://img.shields.io/badge/python-3.6%2B-blue)
