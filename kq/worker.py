@@ -247,7 +247,7 @@ class Worker:
         self._consumer.subscribe([self.topic])
 
         messages_processed = 0
-        while max_messages is not None and messages_processed < max_messages:
+        while max_messages is None or messages_processed < max_messages:
             record = next(self._consumer)
 
             message = Message(
